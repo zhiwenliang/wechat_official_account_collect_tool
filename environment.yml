@@ -1,0 +1,14 @@
+name: wechat-scraper
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+    - pyautogui==0.9.54
+    - pyperclip==1.8.2
+    - playwright==1.40.0
+    - beautifulsoup4==4.12.2
+    - lxml==4.9.3
+    - pillow==10.1.0
