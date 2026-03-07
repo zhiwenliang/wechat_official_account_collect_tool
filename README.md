@@ -17,6 +17,34 @@
 - playwright: 浏览器自动化
 - sqlite3: 数据存储
 
+## 环境配置
+
+### 使用Conda创建专用环境
+
+```bash
+# 创建新的conda环境（Python 3.8+）
+conda create -n wechat-scraper python=3.10
+
+# 激活环境
+conda activate wechat-scraper
+
+# 安装依赖
+pip install -r requirements.txt
+
+# 安装Playwright浏览器
+playwright install chromium
+```
+
+后续使用时，只需激活环境：
+```bash
+conda activate wechat-scraper
+```
+
+如果需要删除环境：
+```bash
+conda remove -n wechat-scraper --all
+```
+
 ## 使用流程
 
 ### 阶段1：采集文章链接

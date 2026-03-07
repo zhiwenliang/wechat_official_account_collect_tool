@@ -19,8 +19,16 @@ class LinkCollector:
     def _load_config(self, config_path):
         """加载坐标配置"""
         path = Path(config_path)
+
+        # 确保config目录存在
+        path.parent.mkdir(parents=True, exist_ok=True)
+
         if not path.exists():
-            raise FileNotFoundError(f"配置文件不存在: {path}\n请先运行: python main.py calibrate")
+            raise FileNotFoundError(
+                f"配置文件不存在: {path}\n"
+                f"请先运行: python main.py calibrate"
+            )
+
         with open(path, 'r', encoding='utf-8') as f:
             return json.load(f)
 

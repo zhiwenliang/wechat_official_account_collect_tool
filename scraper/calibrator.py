@@ -18,8 +18,41 @@ def calibrate():
     print("注意：校准后请勿移动窗口位置和大小\n")
 
     config_path = Path(__file__).parent.parent / "config" / "coordinates.json"
-    with open(config_path, 'r', encoding='utf-8') as f:
-        config = json.load(f)
+
+    # 确保config目录存在
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # 如果配置文件不存在，创建默认配置
+    if not config_path.exists():
+        print("配置文件不存在，正在创建默认配置...\n")
+        config = {
+            "windows": {
+                "article_list": {
+                    "article_group_button": {"x": 0, "y": 0, "description": "文章分组按钮"},
+                    "article_click_area": {"x": 0, "y": 0, "description": "文章点击位置"},
+                    "row_height": 0,
+                    "scroll_amount": 3,
+                    "visible_articles": 5
+                },
+                "browser": {
+                    "more_button": {"x": 0, "y": 0, "description": "更多按钮"},
+                    "copy_link_menu": {"x": 0, "y": 0, "description": "复制链接菜单"},
+                    "first_tab": {"x": 0, "y": 0, "description": "第一个标签"},
+                    "close_tab_button": {"x": 0, "y": 0, "description": "关闭标签按钮"}
+                }
+            },
+            "timing": {
+                "click_interval": 0.3,
+                "page_load_wait": 2.0,
+                "menu_open_wait": 0.5
+            },
+            "collection": {
+                "max_articles": 1000
+            }
+        }
+    else:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = json.load(f)
 
     # 校准公众号窗口
     print("--- 公众号窗口 ---")

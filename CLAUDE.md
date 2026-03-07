@@ -17,17 +17,14 @@ pip install -r requirements.txt
 # 安装Playwright浏览器
 playwright install chromium
 
-# 1. 校准坐标（首次使用必须）
-python main.py calibrate
+# 完整工作流程
+python main.py calibrate  # 1. 校准坐标（首次使用必须）
+python main.py collect    # 2. 采集链接（需要手动准备微信窗口）
+python main.py import     # 3. 导入链接到数据库
+python main.py scrape     # 4. 抓取文章内容
 
-# 2. 采集链接（需要手动准备微信窗口）
-python main.py collect
-
-# 3. 导入链接到数据库
-python main.py import
-
-# 4. 抓取文章内容
-python main.py scrape
+# 查看数据库状态
+sqlite3 data/articles.db "SELECT status, COUNT(*) FROM articles GROUP BY status;"
 ```
 
 ## 架构设计
@@ -57,6 +54,21 @@ python main.py scrape
 ## 注意事项
 
 - 坐标校准后窗口位置不能变动
-- 采集过程中不要移动鼠标或操作电脑
+- 采集过程中不要移动鼠标或操作电脑（鼠标移到屏幕角落可紧急停止）
 - 微信文章图片有防盗链，需要带referer下载
 - 阅读量是动态加载的，可能获取失败
+- 连续3次相同链接表示已滚动到底，自动停止
+- 每20篇文章自动清理浏览器标签，防止内存占用过高
+
+## 数据库结构
+
+articles表字段：
+- id: 自增主键
+- title: 文章标题
+- url: 文章链接（唯一索引）
+- publish_time: 发布时间
+- read_count: 阅读量
+- like_count: 点赞数
+- scraped_at: 抓取时间
+- status: pending（待抓取）| scraped（已抓取）| failed（失败）
+- file_path: HTML文件路径
