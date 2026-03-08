@@ -15,7 +15,6 @@
   - 中文时间格式解析
   - 同时保存HTML和Markdown格式
   - SQLite数据库存储 + 本地文件备份
-  - 按月份组织文件
 
 ## 技术栈
 
@@ -128,7 +127,6 @@ python main.py scrape
 - 提取标题、发布时间、正文HTML
 - 自动滚动加载所有图片
 - 同时保存HTML和Markdown格式
-- 文件按月份组织：`data/articles/YYYY-MM/`
 - 文件名使用发布时间作为前缀：`YYYYMMDD_HHMMSS_标题.md`
 - 完成后自动生成文章目录索引：`data/articles/INDEX.md`
 
@@ -148,10 +146,10 @@ wechat_official_account_collect_tool/
 ├── data/
 │   ├── articles.db           # SQLite数据库
 │   ├── links.txt             # 采集的链接列表
-│   └── articles/             # 文章备份目录（按月份）
-│       └── YYYY-MM/
-│           ├── *.html        # HTML格式
-│           └── *.md          # Markdown格式
+│   └── articles/             # 文章备份目录
+│       ├── INDEX.md          # 文章目录索引
+│       ├── *.html            # HTML格式
+│       └── *.md              # Markdown格式
 ├── test_stage1.py            # 阶段1测试脚本
 ├── test_stage2.py            # 阶段2测试脚本
 ├── requirements.txt          # Python依赖

@@ -21,38 +21,29 @@ class FileStore:
         """生成文章目录索引"""
         articles = []
 
-        # 遍历所有月份目录
-        for month_dir in sorted(self.base_dir.iterdir()):
-            if not month_dir.is_dir():
-                continue
+        # 遍历所有Markdown文件
+        for md_file in sorted(self.base_dir.glob('*.md'), reverse=True):
+            # 解析文件名：YYYYMMDD_HHMMSS_标题.md
+            filename = md_file.stem
+            parts = filename.split('_', 2)
 
-            # 遍历该月份的所有Markdown文件
-            for md_file in sorted(month_dir.glob('*.md'), reverse=True):
-                # 解析文件名：YYYYMMDD_HHMMSS_标题.md
-                filename = md_file.stem
-                parts = filename.split('_', 2)
+            if len(parts) >= 3:
+                date_str = parts[0]  # YYYYMMDD
+                time_str = parts[1]  # HHMMSS
+                title = parts[2]
 
-                if len(parts) >= 3:
-                    date_str = parts[0]  # YYYYMMDD
-                    time_str = parts[1]  # HHMMSS
-                    title = parts[2]
+                # 格式化日期时间
+                try:
+                    dt = datetime.strptime(f"{date_str}_{time_str}", "%Y%m%d_%H%M%S")
+                    formatted_date = dt.strftime("%Y-%m-%d %H:%M")
+                except:
+                    formatted_date = date_str
 
-                    # 格式化日期时间
-                    try:
-                        dt = datetime.strptime(f"{date_str}_{time_str}", "%Y%m%d_%H%M%S")
-                        formatted_date = dt.strftime("%Y-%m-%d %H:%M")
-                    except:
-                        formatted_date = date_str
-
-                    # 相对路径
-                    rel_path = md_file.relative_to(self.base_dir)
-
-                    articles.append({
-                        'date': formatted_date,
-                        'title': title,
-                        'path': str(rel_path).replace('\\', '/'),
-                        'month': month_dir.name
-                    })
+                articles.append({
+                    'date': formatted_date,
+                    'title': title,
+                    'filename': md_file.name
+                })
 
         # 生成索引文件
         index_path = self.base_dir / 'INDEX.md'
@@ -60,14 +51,8 @@ class FileStore:
             f.write('# 文章目录索引\n\n')
             f.write(f'> 共 {len(articles)} 篇文章\n\n')
 
-            current_month = None
             for article in articles:
-                # 按月份分组
-                if article['month'] != current_month:
-                    current_month = article['month']
-                    f.write(f'\n## {current_month}\n\n')
-
-                f.write(f"- **{article['date']}** - [{article['title']}]({article['path']})\n")
+                f.write(f"- **{article['date']}** - [{article['title']}]({article['filename']})\n")
 
         return str(index_path)
 
@@ -76,31 +61,25 @@ class FileStore:
         title = article_data['title']
         publish_time = article_data.get('publish_time', '')
 
-        # 按月份组织目录
+        # 使用发布时间作为文件名前缀
         try:
             date_obj = datetime.fromisoformat(publish_time)
-            folder = date_obj.strftime('%Y-%m')
-            # 使用发布时间作为文件名前缀
             timestamp = date_obj.strftime('%Y%m%d_%H%M%S')
         except:
-            folder = 'unknown'
             # 如果发布时间解析失败，使用当前时间
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-
-        article_dir = self.base_dir / folder
-        article_dir.mkdir(parents=True, exist_ok=True)
 
         # 生成文件名（使用发布时间）
         safe_title = self._sanitize_filename(title)
         filename = f"{timestamp}_{safe_title}"
 
         # 保存HTML
-        html_path = article_dir / f"{filename}.html"
+        html_path = self.base_dir / f"{filename}.html"
         with open(html_path, 'w', encoding='utf-8') as f:
             f.write(self._generate_html(article_data))
 
         # 保存Markdown
-        md_path = article_dir / f"{filename}.md"
+        md_path = self.base_dir / f"{filename}.md"
         with open(md_path, 'w', encoding='utf-8') as f:
             f.write(self._generate_markdown(article_data))
 
