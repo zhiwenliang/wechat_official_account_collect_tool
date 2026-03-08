@@ -6,6 +6,7 @@ import pyautogui
 import pyperclip
 import time
 import json
+import platform
 from pathlib import Path
 from collections import deque
 
@@ -13,7 +14,8 @@ class LinkCollector:
     def __init__(self, config_path="config/coordinates.json"):
         self.config = self._load_config(config_path)
         self.collected_links = set()
-        self.recent_links = deque(maxlen=3)
+        self.recent_links = deque(maxlen=5)
+        self.is_macos = platform.system() == 'Darwin'
         pyautogui.FAILSAFE = True
 
     def _load_config(self, config_path):
@@ -46,9 +48,11 @@ class LinkCollector:
 
     def _activate_article_window(self):
         """激活公众号窗口"""
-        group_btn = self.config['windows']['article_list']['article_group_button']
-        pyautogui.click(group_btn['x'], group_btn['y'])
-        time.sleep(0.2)
+        # macOS需要点击来激活窗口，Windows不需要
+        if self.is_macos:
+            article_area = self.config['windows']['article_list']['article_click_area']
+            pyautogui.click(article_area['x'], article_area['y'])
+            time.sleep(0.2)
 
     def collect_link(self):
         """采集单篇文章链接"""
@@ -115,7 +119,24 @@ class LinkCollector:
         pyautogui.moveTo(article_area['x'], article_area['y'])
         scroll_amount = self.config['windows']['article_list']['scroll_amount']
         pyautogui.scroll(-scroll_amount)
-        time.sleep(0.5)
+        time.sleep(2.0)
+
+    def refresh_scroll(self):
+        """向上再向下滚动相同单位，用于刷新页面加载"""
+        article_area = self.config['windows']['article_list']['article_click_area']
+        scroll_amount = self.config['windows']['article_list']['scroll_amount']
+
+        print("  尝试刷新页面加载...")
+        pyautogui.moveTo(article_area['x'], article_area['y'])
+
+        # 向上滚动
+        pyautogui.scroll(scroll_amount)
+        time.sleep(1.0)
+
+        # 向下滚动相同单位
+        pyautogui.scroll(-scroll_amount)
+        time.sleep(2.0)
+        print("  ✓ 刷新完成")
 
     def close_tabs(self):
         """关闭多余的标签，只保留一个"""
@@ -136,7 +157,7 @@ class LinkCollector:
         print("=== 微信公众号文章链接采集 ===\n")
 
         print("准备工作检查：")
-        print("1. 窗口1：已打开公众号页面")
+        print("1. 窗口1：已打开公众号页面，并点击【文章分组】，滚动到页面最顶部")
         print("2. 窗口2：已打开微信内置浏览器")
         print("3. 两个窗口不重叠且都可见")
         print("4. 已完成坐标校准\n")
@@ -146,11 +167,6 @@ class LinkCollector:
         print("\n提示: 将鼠标移到屏幕角落可紧急停止\n")
         time.sleep(2)
 
-        group_btn = self.config['windows']['article_list']['article_group_button']
-        print(f"步骤1: 点击文章分组...")
-        self._click(group_btn['x'], group_btn['y'], "文章分组")
-        time.sleep(1)
-
         # 初始化点击位置（第一篇文章中间）
         current_click_y = self.config['windows']['article_list']['article_click_area']['y']
 
@@ -159,8 +175,11 @@ class LinkCollector:
 
         article_count = 0
         max_articles = self.config['collection']['max_articles']
+        has_refreshed = False  # 标记是否已经尝试过刷新
+        consecutive_failures = 0  # 连续失败次数
+        max_consecutive_failures = 10  # 最大连续失败次数
 
-        print(f"\n步骤2: 开始采集 (最多{max_articles}篇)\n")
+        print(f"开始采集 (最多{max_articles}篇)\n")
         print("-" * 60)
 
         # 主循环：点击 -> 采集 -> 滚动
@@ -172,14 +191,25 @@ class LinkCollector:
 
             if link:
                 self.recent_links.append(link)
+                consecutive_failures = 0  # 重置失败计数
 
                 duplicate_count = self._check_duplicate_count()
 
-                if duplicate_count == 2:
-                    print(f"  ⚠ 检测到连续2次相同链接，继续滚动...")
-                elif duplicate_count >= 3:
-                    print(f"\n检测到连续{duplicate_count}次相同链接，已滚动到底")
-                    break
+                if duplicate_count >= 2 and duplicate_count < 5:
+                    print(f"  ⚠ 检测到连续{duplicate_count}次相同链接，继续滚动...")
+                elif duplicate_count >= 5:
+                    if not has_refreshed:
+                        # 第一次检测到5次重复，尝试刷新
+                        print(f"\n检测到连续{duplicate_count}次相同链接，尝试刷新页面...")
+                        self.refresh_scroll()
+                        has_refreshed = True
+                        # 清空最近链接记录，重新开始计数
+                        self.recent_links.clear()
+                        continue
+                    else:
+                        # 刷新后仍然5次重复，确认到底
+                        print(f"\n刷新后仍检测到连续{duplicate_count}次相同链接，确认已滚动到底")
+                        break
 
                 if link not in self.collected_links:
                     self.collected_links.add(link)
@@ -190,14 +220,22 @@ class LinkCollector:
                     article_count += 1
                     print(f"  ✓ 已保存: {link}")
 
-                    # 每20篇关闭多余标签
-                    if article_count % 20 == 0:
+                    # 重置刷新标志（有新链接说明还没到底）
+                    has_refreshed = False
+
+                    # 每30篇关闭多余标签
+                    if article_count % 30 == 0:
                         print(f"\n已采集{article_count}篇，清理标签...")
                         self.close_tabs()
                 else:
                     print(f"  ⚠ 重复链接，已跳过")
             else:
                 print(f"  ✗ 未获取到有效链接")
+                consecutive_failures += 1
+
+                if consecutive_failures >= max_consecutive_failures:
+                    print(f"\n连续{consecutive_failures}次未获取到有效链接，可能出现异常，停止采集")
+                    break
 
             # 滚动到下一篇
             self.scroll_article()

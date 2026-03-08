@@ -76,6 +76,7 @@ def main():
     if len(sys.argv) < 2:
         print("用法:")
         print("  python main.py calibrate  - 校准坐标")
+        print("  python main.py test       - 测试校准结果")
         print("  python main.py collect    - 采集链接")
         print("  python main.py import     - 导入链接到数据库")
         print("  python main.py scrape     - 抓取文章内容")
@@ -86,6 +87,9 @@ def main():
     if command == "calibrate":
         from scraper.calibrator import calibrate
         calibrate()
+    elif command == "test":
+        from scraper.calibrator import test_calibration
+        test_calibration()
     elif command == "collect":
         collector = LinkCollector()
         collector.run()

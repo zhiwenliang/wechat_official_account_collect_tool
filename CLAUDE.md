@@ -19,9 +19,10 @@ playwright install chromium
 
 # 完整工作流程
 python main.py calibrate  # 1. 校准坐标（首次使用必须）
-python main.py collect    # 2. 采集链接（需要手动准备微信窗口）
-python main.py import     # 3. 导入链接到数据库
-python main.py scrape     # 4. 抓取文章内容
+python main.py test       # 2. 测试校准结果（可选）
+python main.py collect    # 3. 采集链接（需要手动准备微信窗口）
+python main.py import     # 4. 导入链接到数据库
+python main.py scrape     # 5. 抓取文章内容
 
 # 查看数据库状态
 sqlite3 data/articles.db "SELECT status, COUNT(*) FROM articles GROUP BY status;"
@@ -57,8 +58,10 @@ sqlite3 data/articles.db "SELECT status, COUNT(*) FROM articles GROUP BY status;
 - 采集过程中不要移动鼠标或操作电脑（鼠标移到屏幕角落可紧急停止）
 - 微信文章图片有防盗链，需要带referer下载
 - 阅读量是动态加载的，可能获取失败
-- 连续3次相同链接表示已滚动到底，自动停止
-- 每20篇文章自动清理浏览器标签，防止内存占用过高
+- 到底检测：连续5次相同链接时，先向上再向下滚动刷新页面，如果刷新后仍然5次相同则确认到底
+- 每30篇文章自动清理浏览器标签，防止内存占用过高
+- 滚动后等待2秒，确保页面加载完成
+- Windows和macOS窗口激活机制不同，程序会自动适配
 
 ## 数据库结构
 

@@ -28,7 +28,6 @@ def calibrate():
         config = {
             "windows": {
                 "article_list": {
-                    "article_group_button": {"x": 0, "y": 0, "description": "文章分组按钮"},
                     "article_click_area": {"x": 0, "y": 0, "description": "文章点击位置"},
                     "row_height": 0,
                     "scroll_amount": 3,
@@ -43,7 +42,7 @@ def calibrate():
             },
             "timing": {
                 "click_interval": 0.3,
-                "page_load_wait": 2.0,
+                "page_load_wait": 10.0,
                 "menu_open_wait": 0.5
             },
             "collection": {
@@ -56,16 +55,11 @@ def calibrate():
 
     # 校准公众号窗口
     print("--- 公众号窗口 ---")
-    input("1. 将鼠标移动到【文章分组按钮】上，按回车...")
-    pos = get_mouse_position()
-    config['windows']['article_list']['article_group_button'] = {
-        "x": pos.x, "y": pos.y, "description": "文章分组按钮"
-    }
-    print(f"   已记录: ({pos.x}, {pos.y})\n")
+    print("准备：请先点击【文章分组】按钮，并滚动到页面最顶部\n")
 
     # 测量行高
     print("--- 测量文章行高 ---")
-    input("2. 将鼠标移动到【任意一篇文章的顶部】，按回车...")
+    input("1. 将鼠标移动到【任意一篇文章的顶部】，按回车...")
     pos1 = get_mouse_position()
     print(f"   文章顶部: ({pos1.x}, {pos1.y})")
 
@@ -78,7 +72,7 @@ def calibrate():
 
     # 获取第一篇文章底部
     print("--- 获取第一篇文章底部 ---")
-    input("3. 将鼠标移动到【第一篇文章的底部】，按回车...")
+    input("2. 将鼠标移动到【第一篇文章的底部】，按回车...")
     pos_bottom = get_mouse_position()
     print(f"   第一篇底部: ({pos_bottom.x}, {pos_bottom.y})")
 
@@ -131,13 +125,13 @@ def calibrate():
     print(f"   已记录滚动单位: {scroll_amount}\n")
     print(f"   已计算点击位置: ({pos_bottom.x}, {click_y})\n")
     # 获取窗口可见文章数（用于估计剩余文章）
-    visible_count = input("4. 输入窗口可见文章数量（用于最后处理剩余文章，如5）: ").strip()
+    visible_count = input("3. 输入窗口可见文章数量（用于最后处理剩余文章，如5）: ").strip()
     config['windows']['article_list']['visible_articles'] = int(visible_count) if visible_count else 5
     print(f"   已记录: {config['windows']['article_list']['visible_articles']} 篇\n")
 
     # 校准浏览器窗口
     print("--- 微信内置浏览器窗口 ---")
-    input("5. 将鼠标移动到【右上角更多按钮】上，按回车...")
+    input("4. 将鼠标移动到【右上角更多按钮】上，按回车...")
     pos = get_mouse_position()
     config['windows']['browser']['more_button'] = {
         "x": pos.x, "y": pos.y, "description": "右上角更多按钮"
@@ -145,14 +139,14 @@ def calibrate():
     print(f"   已记录: ({pos.x}, {pos.y})\n")
 
     # 使用倒计时获取复制链接位置
-    print("6. 获取【复制链接菜单项】位置")
+    print("5. 获取【复制链接菜单项】位置")
     print("   准备：点击更多按钮后，窗口焦点会跳转")
-    print("   操作：按回车后，5秒内完成以下步骤：")
+    print("   操作：按回车后，10秒内完成以下步骤：")
     print("        1) 点击更多按钮")
     print("        2) 将鼠标移动到复制链接菜单项上")
     input("   准备好后按回车开始倒计时...")
 
-    for i in range(5, 0, -1):
+    for i in range(10, 0, -1):
         print(f"   {i}秒...")
         time.sleep(1)
 
@@ -165,7 +159,7 @@ def calibrate():
     # 校准标签管理位置
     print("--- 标签管理（防止浏览器崩溃）---")
     print("需要先打开20个标签以获取实际标签位置")
-    input("7. 准备好后按回车，将自动点击文章20次...")
+    input("6. 准备好后按回车，将自动点击文章20次...")
 
     print("   自动点击中...")
     click_x = config['windows']['article_list']['article_click_area']['x']
@@ -178,7 +172,7 @@ def calibrate():
 
     print("   ✓ 已打开20个标签\n")
 
-    input("8. 将鼠标移动到【第一个标签】上，按回车...")
+    input("7. 将鼠标移动到【第一个标签】上，按回车...")
     pos = get_mouse_position()
     config['windows']['browser']['first_tab'] = {
         "x": pos.x, "y": pos.y, "description": "第一个标签位置"
@@ -197,13 +191,8 @@ def calibrate():
         json.dump(config, f, indent=2, ensure_ascii=False)
 
     print(f"✓ 坐标配置已保存到: {config_path}")
-    
-    # 询问是否测试
-    test_choice = input("\n是否测试校准结果？(y/n): ").strip().lower()
-    if test_choice == "y":
-        test_calibration()
-    else:
-        print("\n校准完成！现在可以运行链接采集脚本了。")
+    print("\n校准完成！")
+    print("提示：可以运行 'python main.py test' 测试校准结果")
 
 if __name__ == "__main__":
     calibrate()
