@@ -4,3 +4,4 @@ playwright>=1.40.0
 beautifulsoup4>=4.12.2
 lxml>=4.9.3
 pillow>=10.1.0
+markdownify>=1.2.0

@@ -39,11 +39,11 @@ sqlite3 data/articles.db "SELECT status, COUNT(*) FROM articles GROUP BY status;
 ### 阶段2：内容抓取（scraper/content_scraper.py）
 - 使用Playwright访问文章URL
 - 提取：标题、发布时间、正文HTML
-- 保存到SQLite数据库 + HTML文件
+- 保存到SQLite数据库 + HTML文件 + Markdown文件
 
 ### 数据存储
 - SQLite: storage/database.py - 结构化数据
-- 文件系统: storage/file_store.py - HTML备份，按月份组织
+- 文件系统: storage/file_store.py - HTML和Markdown备份，按月份组织
 
 ## 关键技术点
 

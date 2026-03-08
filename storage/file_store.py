@@ -4,6 +4,7 @@
 """
 from pathlib import Path
 from datetime import datetime
+from markdownify import markdownify as md
 import re
 
 class FileStore:
@@ -41,6 +42,11 @@ class FileStore:
         with open(html_path, 'w', encoding='utf-8') as f:
             f.write(self._generate_html(article_data))
 
+        # 保存Markdown
+        md_path = article_dir / f"{filename}.md"
+        with open(md_path, 'w', encoding='utf-8') as f:
+            f.write(self._generate_markdown(article_data))
+
         return str(html_path)
 
     def _generate_html(self, article_data):
@@ -69,3 +75,20 @@ class FileStore:
 </body>
 </html>"""
         return html
+
+    def _generate_markdown(self, article_data):
+        """生成Markdown文件"""
+        # 转换HTML内容为Markdown
+        content_md = md(article_data['content_html'], heading_style="ATX")
+
+        # 生成完整的Markdown文档
+        markdown = f"""# {article_data['title']}
+
+**发布时间**: {article_data.get('publish_time', 'N/A')}
+**原文链接**: {article_data['url']}
+
+---
+
+{content_md}
+"""
+        return markdown
