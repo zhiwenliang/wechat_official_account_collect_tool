@@ -23,8 +23,6 @@ class Database:
                 title TEXT,
                 url TEXT UNIQUE NOT NULL,
                 publish_time TEXT,
-                read_count INTEGER,
-                like_count INTEGER,
                 scraped_at TEXT,
                 status TEXT DEFAULT 'pending',
                 file_path TEXT

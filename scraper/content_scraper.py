@@ -5,6 +5,7 @@
 from playwright.sync_api import sync_playwright
 from bs4 import BeautifulSoup
 import time
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -13,6 +14,22 @@ class ContentScraper:
         self.playwright = None
         self.browser = None
         self.page = None
+
+    def _parse_publish_time(self, time_str):
+        """解析发布时间，支持中文格式"""
+        try:
+            # 处理中文格式：2026年3月5日 23:39
+            match = re.match(r'(\d{4})年(\d{1,2})月(\d{1,2})日\s+(\d{1,2}):(\d{2})', time_str)
+            if match:
+                year, month, day, hour, minute = match.groups()
+                dt = datetime(int(year), int(month), int(day), int(hour), int(minute))
+                return dt.isoformat()
+
+            # 如果已经是ISO格式，直接返回
+            return time_str
+        except Exception as e:
+            print(f"  警告: 时间解析失败: {time_str}, 错误: {e}")
+            return time_str
 
     def start(self):
         """启动浏览器"""
@@ -31,7 +48,7 @@ class ContentScraper:
         """抓取单篇文章"""
         try:
             self.page.goto(url, timeout=30000)
-            time.sleep(2)
+            time.sleep(3)
 
             # 等待内容加载
             self.page.wait_for_selector('#js_content', timeout=10000)
@@ -40,24 +57,8 @@ class ContentScraper:
             title = self.page.locator('#activity-name').inner_text()
 
             # 提取发布时间
-            publish_time = self.page.locator('#publish_time').inner_text()
-
-            # 提取阅读量（可能需要等待）
-            read_count = None
-            try:
-                self.page.wait_for_selector('#js_read_count', timeout=5000)
-                read_count = self.page.locator('#js_read_count').inner_text()
-                read_count = int(read_count) if read_count.isdigit() else None
-            except:
-                pass
-
-            # 提取点赞数
-            like_count = None
-            try:
-                like_count = self.page.locator('#js_like_count').inner_text()
-                like_count = int(like_count) if like_count.isdigit() else None
-            except:
-                pass
+            publish_time_raw = self.page.locator('#publish_time').inner_text()
+            publish_time = self._parse_publish_time(publish_time_raw)
 
             # 提取正文HTML
             content_html = self.page.locator('#js_content').inner_html()
@@ -65,9 +66,7 @@ class ContentScraper:
             return {
                 'title': title.strip(),
                 'url': url,
-                'publish_time': publish_time.strip(),
-                'read_count': read_count,
-                'like_count': like_count,
+                'publish_time': publish_time,
                 'content_html': content_html,
                 'scraped_at': datetime.now().isoformat()
             }

@@ -38,7 +38,7 @@ sqlite3 data/articles.db "SELECT status, COUNT(*) FROM articles GROUP BY status;
 
 ### 阶段2：内容抓取（scraper/content_scraper.py）
 - 使用Playwright访问文章URL
-- 提取：标题、发布时间、阅读量、点赞数、正文HTML
+- 提取：标题、发布时间、正文HTML
 - 保存到SQLite数据库 + HTML文件
 
 ### 数据存储
@@ -57,7 +57,6 @@ sqlite3 data/articles.db "SELECT status, COUNT(*) FROM articles GROUP BY status;
 - 坐标校准后窗口位置不能变动
 - 采集过程中不要移动鼠标或操作电脑（鼠标移到屏幕角落可紧急停止）
 - 微信文章图片有防盗链，需要带referer下载
-- 阅读量是动态加载的，可能获取失败
 - 到底检测：连续5次相同链接时，先向上再向下滚动刷新页面，如果刷新后仍然5次相同则确认到底
 - 每30篇文章自动清理浏览器标签，防止内存占用过高
 - 滚动后等待2秒，确保页面加载完成
@@ -70,8 +69,6 @@ articles表字段：
 - title: 文章标题
 - url: 文章链接（唯一索引）
 - publish_time: 发布时间
-- read_count: 阅读量
-- like_count: 点赞数
 - scraped_at: 抓取时间
 - status: pending（待抓取）| scraped（已抓取）| failed（失败）
 - file_path: HTML文件路径

@@ -56,8 +56,6 @@ def scrape_content():
                     url,
                     title=article_data['title'],
                     publish_time=article_data['publish_time'],
-                    read_count=article_data['read_count'],
-                    like_count=article_data['like_count'],
                     scraped_at=article_data['scraped_at'],
                     file_path=file_path,
                     status='scraped'

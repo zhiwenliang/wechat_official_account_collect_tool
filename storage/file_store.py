@@ -61,7 +61,6 @@ class FileStore:
     <h1>{article_data['title']}</h1>
     <div class="meta">
         <p>发布时间: {article_data.get('publish_time', 'N/A')}</p>
-        <p>阅读: {article_data.get('read_count', 'N/A')} | 点赞: {article_data.get('like_count', 'N/A')}</p>
         <p>链接: <a href="{article_data['url']}">{article_data['url']}</a></p>
     </div>
     <div id="js_content">
