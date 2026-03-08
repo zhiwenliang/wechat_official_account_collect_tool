@@ -30,11 +30,17 @@ def import_links_to_db():
 
 def scrape_content():
     """抓取文章内容"""
+    from datetime import datetime
+    start_time = datetime.now()
+
     db = Database()
     file_store = FileStore()
     scraper = ContentScraper()
 
     pending = db.get_pending_articles()
+
+    print("=== 微信公众号文章内容抓取 ===\n")
+    print(f"开始时间: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"待抓取文章: {len(pending)} 篇\n")
 
     if not pending:
@@ -73,7 +79,14 @@ def scrape_content():
     index_path = file_store.generate_index()
     print(f"✓ 索引已生成: {index_path}")
 
-    print("\n抓取完成！")
+    end_time = datetime.now()
+    elapsed = end_time - start_time
+
+    print("\n" + "=" * 60)
+    print("抓取完成！")
+    print(f"\n开始时间: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"结束时间: {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"总耗时: {elapsed.total_seconds():.1f} 秒 ({elapsed.total_seconds()/60:.1f} 分钟)")
 
 def generate_index():
     """生成文章目录索引"""

@@ -154,7 +154,11 @@ class LinkCollector:
 
     def run(self, output_file="data/links.txt"):
         """运行采集流程"""
+        from datetime import datetime
+        start_time = datetime.now()
+
         print("=== 微信公众号文章链接采集 ===\n")
+        print(f"开始时间: {start_time.strftime('%Y-%m-%d %H:%M:%S')}\n")
 
         print("准备工作检查：")
         print("1. 窗口1：已打开公众号页面，并点击【文章分组】，滚动到页面最顶部")
@@ -265,8 +269,14 @@ class LinkCollector:
                     print(f"  ✓ 已保存: {link}")
 
         print("\n" + "=" * 60)
+        end_time = datetime.now()
+        elapsed = end_time - start_time
+
         print(f"采集完成！共采集 {article_count} 篇文章")
         print(f"保存位置: {output_path.absolute()}")
+        print(f"\n开始时间: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"结束时间: {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"总耗时: {elapsed.total_seconds():.1f} 秒 ({elapsed.total_seconds()/60:.1f} 分钟)")
 
 if __name__ == "__main__":
     collector = LinkCollector()
