@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 
 class ContentScraper:
-    def __init__(self, max_retries=3, retry_delay=3):
+    def __init__(self, max_retries=3, retry_delay=10):
         self.playwright = None
         self.browser = None
         self.page = None
