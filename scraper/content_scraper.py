@@ -60,6 +60,9 @@ class ContentScraper:
             publish_time_raw = self.page.locator('#publish_time').inner_text()
             publish_time = self._parse_publish_time(publish_time_raw)
 
+            # 滚动页面加载所有图片
+            self._scroll_to_load_images()
+
             # 提取正文HTML
             content_html = self.page.locator('#js_content').inner_html()
 
@@ -74,3 +77,34 @@ class ContentScraper:
         except Exception as e:
             print(f"抓取失败: {url}, 错误: {e}")
             return None
+
+    def _scroll_to_load_images(self):
+        """滚动页面以加载所有图片"""
+        try:
+            # 获取页面总高度
+            total_height = self.page.evaluate("document.body.scrollHeight")
+            viewport_height = self.page.evaluate("window.innerHeight")
+
+            # 计算需要滚动的次数
+            scroll_steps = int(total_height / viewport_height) + 1
+
+            print(f"  正在滚动加载图片（共{scroll_steps}步）...")
+
+            # 逐步滚动到底部
+            for i in range(scroll_steps):
+                scroll_position = viewport_height * i
+                self.page.evaluate(f"window.scrollTo(0, {scroll_position})")
+                time.sleep(0.5)  # 等待图片加载
+
+            # 滚动到底部
+            self.page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+            time.sleep(1)
+
+            # 滚回顶部
+            self.page.evaluate("window.scrollTo(0, 0)")
+            time.sleep(0.5)
+
+            print(f"  [OK] 图片加载完成")
+
+        except Exception as e:
+            print(f"  警告: 滚动加载图片时出错: {e}")
