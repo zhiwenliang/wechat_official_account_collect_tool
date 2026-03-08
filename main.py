@@ -68,7 +68,18 @@ def scrape_content():
     finally:
         scraper.stop()
 
+    # 生成文章目录索引
+    print("\n生成文章目录索引...")
+    index_path = file_store.generate_index()
+    print(f"✓ 索引已生成: {index_path}")
+
     print("\n抓取完成！")
+
+def generate_index():
+    """生成文章目录索引"""
+    file_store = FileStore()
+    index_path = file_store.generate_index()
+    print(f"✓ 索引已生成: {index_path}")
 
 def main():
     if len(sys.argv) < 2:
@@ -78,6 +89,7 @@ def main():
         print("  python main.py collect    - 采集链接")
         print("  python main.py import     - 导入链接到数据库")
         print("  python main.py scrape     - 抓取文章内容")
+        print("  python main.py index      - 生成文章目录索引")
         return
 
     command = sys.argv[1]
@@ -95,6 +107,8 @@ def main():
         import_links_to_db()
     elif command == "scrape":
         scrape_content()
+    elif command == "index":
+        generate_index()
     else:
         print(f"未知命令: {command}")
 

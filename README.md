@@ -71,8 +71,11 @@ python main.py collect
 # 4. 导入链接到数据库
 python main.py import
 
-# 5. 抓取文章内容
+# 5. 抓取文章内容（完成后自动生成索引）
 python main.py scrape
+
+# 6. 单独生成文章目录索引（可选）
+python main.py index
 ```
 
 ### 查看数据库状态
@@ -126,6 +129,8 @@ python main.py scrape
 - 自动滚动加载所有图片
 - 同时保存HTML和Markdown格式
 - 文件按月份组织：`data/articles/YYYY-MM/`
+- 文件名使用发布时间作为前缀：`YYYYMMDD_HHMMSS_标题.md`
+- 完成后自动生成文章目录索引：`data/articles/INDEX.md`
 
 ## 项目结构
 
