@@ -82,3 +82,58 @@ class Database:
         conn.close()
 
         return exists
+
+    def get_statistics(self):
+        """获取统计信息"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        # 总数统计
+        cursor.execute("SELECT COUNT(*) FROM articles")
+        total = cursor.fetchone()[0]
+
+        # 按状态统计
+        cursor.execute("SELECT status, COUNT(*) FROM articles GROUP BY status")
+        status_counts = dict(cursor.fetchall())
+
+        # 获取失败的文章
+        cursor.execute("SELECT url FROM articles WHERE status = 'failed'")
+        failed_urls = [row[0] for row in cursor.fetchall()]
+
+        conn.close()
+
+        return {
+            'total': total,
+            'pending': status_counts.get('pending', 0),
+            'scraped': status_counts.get('scraped', 0),
+            'failed': status_counts.get('failed', 0),
+            'failed_urls': failed_urls
+        }
+
+    def reset_failed(self):
+        """重置失败的文章状态为pending"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute("UPDATE articles SET status = 'pending' WHERE status = 'failed'")
+        affected = cursor.rowcount
+        conn.commit()
+        conn.close()
+
+        return affected
+
+    def get_articles_by_status(self, status):
+        """获取指定状态的文章列表"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT id, url, title, publish_time, scraped_at, file_path
+            FROM articles
+            WHERE status = ?
+            ORDER BY id
+        """, (status,))
+        articles = cursor.fetchall()
+        conn.close()
+
+        return articles

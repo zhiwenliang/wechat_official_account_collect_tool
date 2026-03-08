@@ -73,7 +73,13 @@ python main.py import
 # 5. 抓取文章内容（完成后自动生成索引）
 python main.py scrape
 
-# 6. 单独生成文章目录索引（可选）
+# 6. 查看数据库统计信息
+python main.py stats
+
+# 7. 重新抓取失败的文章
+python main.py retry
+
+# 8. 单独生成文章目录索引（可选）
 python main.py index
 ```
 
@@ -82,6 +88,28 @@ python main.py index
 ```bash
 sqlite3 data/articles.db "SELECT status, COUNT(*) FROM articles GROUP BY status;"
 ```
+
+或使用内置命令：
+```bash
+python main.py stats
+```
+
+### 数据库管理
+
+**查看统计信息**：
+```bash
+python main.py stats
+```
+显示总文章数、待抓取、已抓取、失败数量，以及失败的文章链接
+
+**重新抓取失败的文章**：
+```bash
+python main.py retry
+```
+将所有失败的文章状态重置为待抓取，然后运行 `python main.py scrape` 重新抓取
+
+**断点续传**：
+如果抓取过程中断，直接再次运行 `python main.py scrape` 即可继续，已抓取的文章会自动跳过
 
 ## 使用说明
 
@@ -180,6 +208,14 @@ CREATE TABLE articles (
     file_path TEXT
 );
 ```
+
+### 数据库的作用
+
+1. **状态管理**：跟踪每个链接的抓取状态（pending/scraped/failed）
+2. **断点续传**：抓取中断后可以继续，不会重复抓取已完成的文章
+3. **去重**：URL唯一约束，避免重复抓取
+4. **失败重试**：记录失败的文章，可以批量重试
+5. **统计查询**：快速查看抓取进度和失败情况
 
 ## 常见问题
 

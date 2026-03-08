@@ -45,9 +45,13 @@ def scrape_content():
 
     if not pending:
         print("没有待抓取的文章")
+        print("\n提示: 使用 'python main.py stats' 查看数据库状态")
         return
 
     scraper.start()
+
+    success_count = 0
+    failed_count = 0
 
     try:
         for idx, (article_id, url) in enumerate(pending, 1):
@@ -67,9 +71,11 @@ def scrape_content():
                     status='scraped'
                 )
                 print(f"  ✓ 已保存: {file_path}")
+                success_count += 1
             else:
                 db.update_article(url, status='failed')
                 print(f"  ✗ 抓取失败")
+                failed_count += 1
 
     finally:
         scraper.stop()
@@ -84,15 +90,48 @@ def scrape_content():
 
     print("\n" + "=" * 60)
     print("抓取完成！")
+    print(f"\n成功: {success_count} 篇")
+    print(f"失败: {failed_count} 篇")
     print(f"\n开始时间: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"结束时间: {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"总耗时: {elapsed.total_seconds():.1f} 秒 ({elapsed.total_seconds()/60:.1f} 分钟)")
+
+    if failed_count > 0:
+        print(f"\n提示: 使用 'python main.py retry' 重新抓取失败的文章")
 
 def generate_index():
     """生成文章目录索引"""
     file_store = FileStore()
     index_path = file_store.generate_index()
     print(f"✓ 索引已生成: {index_path}")
+
+def show_statistics():
+    """显示数据库统计信息"""
+    db = Database()
+    stats = db.get_statistics()
+
+    print("=== 数据库统计信息 ===\n")
+    print(f"总文章数: {stats['total']}")
+    print(f"  - 待抓取: {stats['pending']}")
+    print(f"  - 已抓取: {stats['scraped']}")
+    print(f"  - 抓取失败: {stats['failed']}")
+
+    if stats['failed'] > 0:
+        print(f"\n失败的文章链接:")
+        for url in stats['failed_urls']:
+            print(f"  - {url}")
+        print(f"\n提示: 使用 'python main.py retry' 重新抓取失败的文章")
+
+def retry_failed():
+    """重新抓取失败的文章"""
+    db = Database()
+    affected = db.reset_failed()
+
+    if affected > 0:
+        print(f"✓ 已将 {affected} 篇失败文章重置为待抓取状态")
+        print("现在可以运行 'python main.py scrape' 重新抓取")
+    else:
+        print("没有失败的文章需要重试")
 
 def main():
     if len(sys.argv) < 2:
@@ -103,6 +142,8 @@ def main():
         print("  python main.py import     - 导入链接到数据库")
         print("  python main.py scrape     - 抓取文章内容")
         print("  python main.py index      - 生成文章目录索引")
+        print("  python main.py stats      - 显示数据库统计信息")
+        print("  python main.py retry      - 重新抓取失败的文章")
         return
 
     command = sys.argv[1]
@@ -122,6 +163,10 @@ def main():
         scrape_content()
     elif command == "index":
         generate_index()
+    elif command == "stats":
+        show_statistics()
+    elif command == "retry":
+        retry_failed()
     else:
         print(f"未知命令: {command}")
 
