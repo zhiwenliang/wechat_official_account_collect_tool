@@ -10,10 +10,12 @@ from datetime import datetime
 from pathlib import Path
 
 class ContentScraper:
-    def __init__(self):
+    def __init__(self, max_retries=3, retry_delay=3):
         self.playwright = None
         self.browser = None
         self.page = None
+        self.max_retries = max_retries
+        self.retry_delay = retry_delay
 
     def _parse_publish_time(self, time_str):
         """解析发布时间，支持中文格式"""
@@ -46,37 +48,45 @@ class ContentScraper:
 
     def scrape_article(self, url):
         """抓取单篇文章"""
-        try:
-            self.page.goto(url, timeout=30000)
-            time.sleep(3)
+        for attempt in range(self.max_retries):
+            try:
+                self.page.goto(url, timeout=30000)
+                time.sleep(3)
 
-            # 等待内容加载
-            self.page.wait_for_selector('#js_content', timeout=10000)
+                # 等待内容加载
+                self.page.wait_for_selector('#js_content', timeout=10000)
 
-            # 提取标题
-            title = self.page.locator('#activity-name').inner_text()
+                # 提取标题
+                title = self.page.locator('#activity-name').inner_text()
 
-            # 提取发布时间
-            publish_time_raw = self.page.locator('#publish_time').inner_text()
-            publish_time = self._parse_publish_time(publish_time_raw)
+                # 提取发布时间
+                publish_time_raw = self.page.locator('#publish_time').inner_text()
+                publish_time = self._parse_publish_time(publish_time_raw)
 
-            # 滚动页面加载所有图片
-            self._scroll_to_load_images()
+                # 滚动页面加载所有图片
+                self._scroll_to_load_images()
 
-            # 提取正文HTML
-            content_html = self.page.locator('#js_content').inner_html()
+                # 提取正文HTML
+                content_html = self.page.locator('#js_content').inner_html()
 
-            return {
-                'title': title.strip(),
-                'url': url,
-                'publish_time': publish_time,
-                'content_html': content_html,
-                'scraped_at': datetime.now().isoformat()
-            }
+                return {
+                    'title': title.strip(),
+                    'url': url,
+                    'publish_time': publish_time,
+                    'content_html': content_html,
+                    'scraped_at': datetime.now().isoformat()
+                }
 
-        except Exception as e:
-            print(f"抓取失败: {url}, 错误: {e}")
-            return None
+            except Exception as e:
+                if attempt < self.max_retries - 1:
+                    print(f"  抓取失败 (尝试 {attempt + 1}/{self.max_retries}): {e}")
+                    print(f"  等待{self.retry_delay}秒后重试...")
+                    time.sleep(self.retry_delay)
+                else:
+                    print(f"  抓取失败 (已重试{self.max_retries}次): {e}")
+                    return None
+
+        return None
 
     def _scroll_to_load_images(self):
         """滚动页面以加载所有图片"""
