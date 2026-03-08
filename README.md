@@ -175,9 +175,11 @@ wechat_official_account_collect_tool/
 │   ├── articles.db           # SQLite数据库
 │   ├── links.txt             # 采集的链接列表
 │   └── articles/             # 文章备份目录
-│       ├── INDEX.md          # 文章目录索引
-│       ├── *.html            # HTML格式
-│       └── *.md              # Markdown格式
+│       ├── html/             # HTML格式文件
+│       │   └── *.html
+│       └── markdown/         # Markdown格式文件
+│           ├── INDEX.md      # 文章目录索引
+│           └── *.md
 ├── test_stage1.py            # 阶段1测试脚本
 ├── test_stage2.py            # 阶段2测试脚本
 ├── requirements.txt          # Python依赖

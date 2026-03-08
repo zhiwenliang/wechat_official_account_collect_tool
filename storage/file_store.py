@@ -10,7 +10,12 @@ import re
 class FileStore:
     def __init__(self, base_dir="data/articles"):
         self.base_dir = Path(base_dir)
-        self.base_dir.mkdir(parents=True, exist_ok=True)
+        self.html_dir = self.base_dir / "html"
+        self.md_dir = self.base_dir / "markdown"
+
+        # 创建目录
+        self.html_dir.mkdir(parents=True, exist_ok=True)
+        self.md_dir.mkdir(parents=True, exist_ok=True)
 
     def _sanitize_filename(self, title):
         """清理文件名中的非法字符"""
@@ -21,8 +26,8 @@ class FileStore:
         """生成文章目录索引"""
         articles = []
 
-        # 遍历所有Markdown文件
-        for md_file in sorted(self.base_dir.glob('*.md'), reverse=True):
+        # 遍历markdown目录下的所有Markdown文件
+        for md_file in sorted(self.md_dir.glob('*.md'), reverse=True):
             # 解析文件名：YYYYMMDD_HHMMSS_标题.md
             filename = md_file.stem
             parts = filename.split('_', 2)
@@ -45,8 +50,8 @@ class FileStore:
                     'filename': md_file.name
                 })
 
-        # 生成索引文件
-        index_path = self.base_dir / 'INDEX.md'
+        # 生成索引文件到markdown目录
+        index_path = self.md_dir / 'INDEX.md'
         with open(index_path, 'w', encoding='utf-8') as f:
             f.write('# 文章目录索引\n\n')
             f.write(f'> 共 {len(articles)} 篇文章\n\n')
@@ -73,13 +78,13 @@ class FileStore:
         safe_title = self._sanitize_filename(title)
         filename = f"{timestamp}_{safe_title}"
 
-        # 保存HTML
-        html_path = self.base_dir / f"{filename}.html"
+        # 保存HTML到html目录
+        html_path = self.html_dir / f"{filename}.html"
         with open(html_path, 'w', encoding='utf-8') as f:
             f.write(self._generate_html(article_data))
 
-        # 保存Markdown
-        md_path = self.base_dir / f"{filename}.md"
+        # 保存Markdown到markdown目录
+        md_path = self.md_dir / f"{filename}.md"
         with open(md_path, 'w', encoding='utf-8') as f:
             f.write(self._generate_markdown(article_data))
 
