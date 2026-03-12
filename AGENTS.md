@@ -2,13 +2,20 @@
 
 ## Project Structure
 
-- `main.py`: CLI entry point (calibrate/collect/scrape/stats/retry/index).
+- `main.py`: CLI entry point (`calibrate/test/collect/scrape/stats/retry/index`).
 - `scraper/`: core automation logic.
   - `calibrator.py`: first-run coordinate calibration for WeChat desktop UI.
   - `link_collector.py`: Stage 1 link collection via `pyautogui` + clipboard.
   - `content_scraper.py`: Stage 2 article scraping via Playwright.
+- `services/`: shared workflows for CLI and GUI.
+  - `calibration_service.py`: reusable calibration/test flow and config I/O.
+  - `workflows.py`: shared collection/scrape/index/retry workflows.
 - `storage/`: persistence helpers (`SQLite` + file output).
+  - `database.py`: article records, list filtering, retries, empty-content helpers.
+  - `file_store.py`: HTML/Markdown export and index generation.
 - `gui/`: optional Tkinter GUI entry (`python -m gui.main`).
+  - `app.py`: main window, dashboard, article management UI.
+  - `worker.py`: background worker threads for long-running operations.
 - `config/coordinates.json` and `data/`: local runtime state (intentionally gitignored).
   - Outputs land under `data/articles/html/` and `data/articles/markdown/` (plus `data/articles.db`).
 
@@ -54,3 +61,4 @@ python -m gui.main         # launch GUI (optional)
 
 - Do not commit local artifacts: `config/coordinates.json`, `data/`, databases, or scraped outputs (already in `.gitignore`).
 - Stage 1 uses `pyautogui` and can move/click your mouse; keep the “failsafe” behavior intact and document any changes.
+- Empty-content articles are tracked by DB content (`status='scraped'` with blank `content_html`), not by a separate status value.

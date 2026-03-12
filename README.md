@@ -1,229 +1,230 @@
 # 微信公众号历史文章采集工具
 
-自动化采集微信公众号历史文章的工具，包含链接采集和内容抓取两个阶段。
+用于批量采集微信公众号历史文章的本地工具，分为两个阶段：
 
-## 功能特性
+1. Stage 1：通过微信 PC 客户端自动采集文章链接
+2. Stage 2：通过 Playwright 抓取文章正文，并保存到 SQLite 与本地文件
 
-- **阶段1**：通过微信PC客户端自动采集文章链接
-  - 智能到底检测（连续5次重复+刷新确认）
-  - 连续失败保护机制
-  - 自动清理浏览器标签
-  - Windows/macOS自动适配
+项目同时提供 CLI 和 Tkinter GUI，两者共用同一套工作流、数据库与导出目录。
 
-- **阶段2**：使用Playwright抓取文章详细内容
-  - 自动滚动加载所有懒加载图片
-  - 中文时间格式解析
-  - 同时保存HTML和Markdown格式
-  - SQLite数据库存储 + 本地文件备份
-  - 失败自动重试（默认3次，间隔10秒）
+## 功能概览
 
-## 技术栈
+- Stage 1 链接采集
+  - 基于 `pyautogui` + 剪贴板操作微信桌面端
+  - 首次使用需要坐标校准
+  - 连续重复链接检测，支持刷新确认是否到达底部
+  - 连续失败保护
+  - 每采集 30 篇自动清理标签页
+  - 保留鼠标移到屏幕角落的 failsafe
+
+- Stage 2 内容抓取
+  - 基于 Playwright 抓取微信文章页面
+  - 自动滚动以触发懒加载内容
+  - 抽取标题、发布时间、正文 HTML
+  - 同时保存 HTML 与 Markdown
+  - 写入 SQLite，支持断点续传
+  - 生成 `INDEX.md` 文章索引
+
+- GUI 能力
+  - 仪表盘查看采集状态
+  - 图形化校准、测试、采集、抓取
+  - 文章列表筛选、搜索、预览
+  - 可重试失败文章或“已抓取但正文为空”的文章
+
+## 环境要求
 
 - Python 3.8+
-- pyautogui: 控制鼠标键盘
-- pyperclip: 剪贴板操作
-- playwright: 浏览器自动化
-- markdownify: HTML转Markdown
-- sqlite3: 数据存储
+- 已安装微信 PC 客户端
+- Stage 2 需要安装 Playwright Chromium
 
-## 环境配置
+## 安装
 
-### 使用Conda创建专用环境
+推荐使用虚拟环境：
 
 ```bash
-# 创建新的conda环境（Python 3.8+）
-conda create -n wechat-scraper python=3.10
-
-# 激活环境
-conda activate wechat-scraper
-
-# 安装依赖
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
-
-# 安装Playwright浏览器
 playwright install chromium
 ```
 
-后续使用时，只需激活环境：
-```bash
-conda activate wechat-scraper
-```
+如果你使用 Conda，也可以：
 
-如果需要删除环境：
 ```bash
-conda remove -n wechat-scraper --all
+conda create -n wechat-scraper python=3.10
+conda activate wechat-scraper
+pip install -r requirements.txt
+playwright install chromium
 ```
 
 ## 快速开始
 
-### 完整工作流程
+典型 CLI 流程：
 
 ```bash
-# 1. 校准坐标（首次使用必须）
+python main.py calibrate   # 首次使用必做
+python main.py test        # 可选，验证校准
+python main.py collect     # 采集文章链接到 SQLite
+python main.py scrape      # 抓取正文并导出 HTML/Markdown
+python main.py stats       # 查看统计信息
+python main.py retry       # 将 failed 重置为 pending
+python main.py index       # 重新生成 Markdown 索引
+```
+
+启动 GUI：
+
+```bash
+python -m gui.main
+```
+
+## CLI 命令说明
+
+`python main.py` 支持以下命令：
+
+- `calibrate`：记录 Stage 1 所需的屏幕坐标
+- `test`：测试当前校准是否可用
+- `collect`：采集公众号文章链接并写入数据库
+- `scrape`：抓取所有 `pending` 文章正文
+- `stats`：查看 `pending/scraped/failed/empty_content` 统计
+- `retry`：把 `failed` 文章重置为 `pending`
+- `index`：重新生成 `data/articles/markdown/INDEX.md`
+
+## 使用流程
+
+### 1. 坐标校准
+
+首次运行必须执行：
+
+```bash
 python main.py calibrate
+```
 
-# 2. 测试校准结果（可选）
-python main.py test
+当前版本会记录 8 个关键项，包括：
 
-# 3. 采集链接（需要手动准备微信窗口，链接直接存入数据库）
+- 文章列表行高
+- 文章点击区域
+- 滚动单位
+- 可见文章数量
+- 浏览器“更多”按钮
+- “复制链接”菜单项
+- 第一个标签页位置
+- 关闭标签按钮位置
+
+校准结果保存到 `config/coordinates.json`。
+
+### 2. 链接采集
+
+采集前请准备两个微信窗口：
+
+1. 公众号文章列表窗口，点击“文章分组”并滚动到最顶部
+2. 微信内置浏览器窗口，任意打开一篇文章即可
+
+然后执行：
+
+```bash
 python main.py collect
-
-# 4. 抓取文章内容（完成后自动生成索引）
-python main.py scrape
-
-# 5. 查看数据库统计信息
-python main.py stats
-
-# 6. 重新抓取失败的文章
-python main.py retry
-
-# 7. 单独生成文章目录索引（可选）
-python main.py index
 ```
-
-## 打包可执行程序
-
-项目提供了统一打包脚本，可在当前平台生成 GUI 和 CLI 可执行程序。
-打包完成后，脚本会自动把 Playwright 的 Chromium 浏览器目录复制到产物运行目录旁边。
-
-### 安装打包依赖
-
-```bash
-pip install pyinstaller
-```
-
-### 打包命令
-
-```bash
-# 同时打包 GUI 和 CLI
-python scripts/package_app.py
-
-# 只打包 GUI
-python scripts/package_app.py --target gui
-
-# 只打包 CLI
-python scripts/package_app.py --target cli
-
-# 打包成单文件
-python scripts/package_app.py --target gui --onefile
-```
-
-生成结果默认输出到 `dist/<platform>/`。
 
 注意：
-- 需要在目标平台上执行打包，不能跨平台直接生成可执行文件
-- 打包前需要先在构建机执行 `playwright install chromium`
-- 打包后的程序会优先使用产物旁边的 `ms-playwright` 浏览器目录
 
-### 查看数据库状态
+- 采集过程中不要移动鼠标或手动操作微信窗口
+- 坐标校准后，窗口位置和大小不要变化
+- 鼠标移到屏幕角落会触发 `pyautogui` failsafe
 
-```bash
-sqlite3 data/articles.db "SELECT status, COUNT(*) FROM articles GROUP BY status;"
-```
+### 3. 内容抓取
 
-或使用内置命令：
-```bash
-python main.py stats
-```
-
-### 数据库管理
-
-**查看统计信息**：
-```bash
-python main.py stats
-```
-显示总文章数、待抓取、已抓取、失败数量，以及失败的文章链接
-
-**重新抓取失败的文章**：
-```bash
-python main.py retry
-```
-将所有失败的文章状态重置为待抓取，然后运行 `python main.py scrape` 重新抓取
-
-**断点续传**：
-如果抓取过程中断，直接再次运行 `python main.py scrape` 即可继续，已抓取的文章会自动跳过
-
-## 使用说明
-
-### 阶段1：采集文章链接
-
-**准备工作**：
-1. 打开微信PC客户端
-2. 窗口1：打开目标公众号页面，点击【文章分组】，滚动到页面最顶部
-3. 窗口2：打开微信内置浏览器（可以先随便点击一篇文章）
-4. 调整两个窗口位置，确保不重叠且都可见
-
-**校准坐标**：
-```bash
-python main.py calibrate
-```
-按照提示依次标记：
-- 文章行高
-- 滚动单位
-- 更多按钮
-- 复制链接菜单
-- 标签管理按钮
-
-**开始采集**：
-```bash
-python main.py collect
-```
-- 采集过程中不要移动鼠标或操作电脑
-- 鼠标移到屏幕角落可紧急停止
-- 链接直接保存到数据库
-
-### 阶段2：抓取文章内容
-
-**抓取内容**：
 ```bash
 python main.py scrape
 ```
-- 自动访问所有待抓取的链接
-- 提取标题、发布时间、正文HTML
-- 自动滚动加载所有图片
-- 同时保存HTML和Markdown格式
-- 文件名使用发布时间作为前缀：`YYYYMMDD_HHMMSS_标题.md`
-- 完成后自动生成文章目录索引：`data/articles/markdown/INDEX.md`
+
+抓取阶段会：
+
+- 读取数据库中 `pending` 文章
+- 抓取正文 HTML 并转换 Markdown
+- 将内容写回数据库
+- 保存本地 HTML/Markdown 文件
+- 完成后自动生成 Markdown 索引
+
+如果中途中断，重新运行 `python main.py scrape` 即可继续。
+
+## GUI 说明
+
+GUI 入口：
+
+```bash
+python -m gui.main
+```
+
+GUI 包含以下区域：
+
+- 仪表盘：查看总数、待抓取、已抓取、失败、无内容文章提示
+- 校准页：执行图形化校准和校准测试
+- 采集页：启动 Stage 1 链接采集
+- 抓取页：启动 Stage 2 内容抓取
+- 文章页：分页浏览、搜索、预览、批量重抓或删除
+
+GUI “工具”菜单额外提供：
+
+- 重新抓取失败文章
+- 重新抓取无内容文章
+- 重新生成文章索引
+
+## 数据目录
+
+运行时数据默认写入以下位置：
+
+```text
+config/coordinates.json
+data/articles.db
+data/articles/html/*.html
+data/articles/markdown/*.md
+data/articles/markdown/INDEX.md
+```
+
+文件名格式默认类似：
+
+```text
+YYYYMMDD_HHMMSS_文章标题.md
+YYYYMMDD_HHMMSS_文章标题.html
+```
 
 ## 项目结构
 
-```
+```text
 wechat_official_account_collect_tool/
-├── config/
-│   └── coordinates.json      # 坐标配置文件
+├── main.py
+├── README.md
+├── AGENTS.md
+├── requirements.txt
 ├── scraper/
-│   ├── calibrator.py         # 坐标校准工具
-│   ├── link_collector.py     # 链接采集模块
-│   └── content_scraper.py    # 内容抓取模块
+│   ├── calibrator.py
+│   ├── link_collector.py
+│   └── content_scraper.py
+├── services/
+│   ├── calibration_service.py
+│   └── workflows.py
 ├── storage/
-│   ├── database.py           # SQLite数据库操作
-│   └── file_store.py         # 文件存储（HTML + Markdown）
-├── data/
-│   ├── articles.db           # SQLite数据库
-│   └── articles/             # 文章备份目录
-│       ├── html/             # HTML格式文件
-│       │   └── *.html
-│       └── markdown/         # Markdown格式文件
-│           ├── INDEX.md      # 文章目录索引
-│           └── *.md
-├── test_stage1.py            # 阶段1测试脚本
-├── test_stage2.py            # 阶段2测试脚本
-├── requirements.txt          # Python依赖
-├── main.py                   # 主入口
-├── CLAUDE.md                 # 项目文档（给AI用）
-└── README.md                 # 本文件
+│   ├── database.py
+│   └── file_store.py
+├── gui/
+│   ├── main.py
+│   ├── app.py
+│   ├── worker.py
+│   ├── preview_dialog.py
+│   └── styles.py
+├── utils/
+│   ├── escape_listener.py
+│   ├── runtime_env.py
+│   └── stop_control.py
+├── scripts/
+│   └── package_app.py
+├── test_stage1.py
+└── test_stage2.py
 ```
 
-## 注意事项
+## 数据库说明
 
-- 坐标校准后窗口位置不能变动
-- 采集过程中不要移动鼠标或操作电脑
-- 连续5次相同链接时会先刷新页面再确认到底
-- 每30篇文章自动清理浏览器标签
-- 滚动后等待2秒，确保页面加载完成
-- Windows和macOS窗口激活机制不同，程序会自动适配
-
-## 数据库结构
+当前 `articles` 表核心字段如下：
 
 ```sql
 CREATE TABLE articles (
@@ -232,30 +233,89 @@ CREATE TABLE articles (
     url TEXT UNIQUE NOT NULL,
     publish_time TEXT,
     scraped_at TEXT,
-    status TEXT DEFAULT 'pending',  -- pending/scraped/failed
-    file_path TEXT
+    status TEXT DEFAULT 'pending',
+    file_path TEXT,
+    content_html TEXT,
+    content_markdown TEXT
 );
 ```
 
-### 数据库的作用
+状态说明：
 
-1. **状态管理**：跟踪每个链接的抓取状态（pending/scraped/failed）
-2. **断点续传**：抓取中断后可以继续，不会重复抓取已完成的文章
-3. **去重**：URL唯一约束，避免重复抓取
-4. **失败重试**：记录失败的文章，可以批量重试
-5. **统计查询**：快速查看抓取进度和失败情况
+- `pending`：等待抓取
+- `scraped`：已抓取
+- `failed`：抓取失败
+
+额外约定：
+
+- “无内容文章”不是单独状态，而是 `status='scraped'` 且 `content_html` 为空
+- `retry` 只会重置 `failed`
+- GUI 还支持重置“无内容文章”为 `pending`
+
+## 打包可执行程序
+
+项目提供 PyInstaller 打包脚本：
+
+```bash
+pip install pyinstaller
+python scripts/package_app.py
+python scripts/package_app.py --target gui
+python scripts/package_app.py --target cli
+python scripts/package_app.py --target gui --onefile
+```
+
+说明：
+
+- 默认输出到 `dist/<platform-tag>/`
+- 需要在目标平台本机打包，不能跨平台直接生成
+- 打包前应先执行 `playwright install chromium`
+- 打包脚本会把 `ms-playwright` 浏览器目录复制到运行产物旁边
+- 打包后的程序会自动尝试发现旁边的 `ms-playwright` 目录
+
+## 测试与检查
+
+当前仓库没有接入独立测试框架，主要依赖手动脚本：
+
+```bash
+python main.py test
+python test_stage1.py
+python test_stage2.py
+```
+
+这些脚本带有真实 UI / 浏览器副作用，不适合直接作为 CI 自动化测试。
 
 ## 常见问题
 
-**Q: 校准后采集失败？**
-A: 确保窗口位置没有变动，可以运行 `python main.py test` 测试校准结果
+**1. 校准后仍然采集失败？**
 
-**Q: 如何修改最大采集数量？**
-A: 编辑 `config/coordinates.json` 中的 `collection.max_articles` 字段
+先运行：
 
-**Q: 图片链接无法访问？**
-A: 微信文章图片有防盗链，需要带referer下载
+```bash
+python main.py test
+```
 
-## 许可证
+如果测试异常，通常是微信窗口位置、缩放比例或布局发生了变化，需要重新校准。
 
-MIT License
+**2. `scrape` 显示没有待抓取文章？**
+
+先运行：
+
+```bash
+python main.py stats
+```
+
+确认数据库中是否已有 `pending` 记录。
+
+**3. 已抓取但正文为空怎么办？**
+
+CLI 只能查看统计；GUI 提供“重新抓取无内容文章”入口，可把这些记录重置回 `pending` 后重新抓取。
+
+**4. 能否修改最大采集数量？**
+
+可以，编辑 `config/coordinates.json` 中的 `collection.max_articles`。
+
+## 安全与注意事项
+
+- 不要提交 `config/coordinates.json`、`data/`、数据库或抓取结果
+- Stage 1 会主动控制鼠标和滚轮，务必保留 `pyautogui` failsafe
+- 任何影响窗口激活、点击位置、标签管理的改动，都需要在 Windows/macOS 上分别验证
