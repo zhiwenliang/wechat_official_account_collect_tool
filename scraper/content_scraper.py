@@ -4,10 +4,10 @@
 """
 from playwright.sync_api import sync_playwright
 from bs4 import BeautifulSoup
-import time
 import re
 from datetime import datetime
 from pathlib import Path
+from utils.stop_control import should_stop as stop_requested, sleep_with_stop
 
 class ContentScraper:
     def __init__(self, max_retries=3, retry_delay=10, stop_checker=None):
@@ -20,18 +20,11 @@ class ContentScraper:
 
     def should_stop(self):
         """检查是否收到停止信号"""
-        return bool(self.stop_checker and self.stop_checker())
+        return stop_requested(self.stop_checker)
 
     def _sleep_with_stop(self, duration):
         """可响应停止信号的睡眠"""
-        deadline = time.time() + duration
-
-        while time.time() < deadline:
-            if self.should_stop():
-                return False
-            time.sleep(max(0, min(0.1, deadline - time.time())))
-
-        return not self.should_stop()
+        return sleep_with_stop(self.stop_checker, duration)
 
     def _parse_publish_time(self, time_str):
         """解析发布时间，支持中文格式"""

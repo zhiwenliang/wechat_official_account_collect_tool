@@ -22,6 +22,20 @@ class FileStore:
         title = re.sub(r'[<>:"/\\|?*]', '', title)
         return title[:100]
 
+    def build_article_filename(self, article_data):
+        """Build a stable export filename for an article."""
+        title = article_data.get('title') or '无标题'
+        publish_time = article_data.get('publish_time', '')
+
+        try:
+            date_obj = datetime.fromisoformat(publish_time)
+            timestamp = date_obj.strftime('%Y%m%d_%H%M%S')
+        except:
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+
+        safe_title = self._sanitize_filename(title) or 'untitled'
+        return f"{timestamp}_{safe_title}"
+
     def generate_index(self):
         """生成文章目录索引"""
         articles = []
@@ -61,22 +75,9 @@ class FileStore:
 
         return str(index_path)
 
-    def save_article(self, article_data):
+    def save_article(self, article_data, content_markdown=None):
         """保存文章到文件"""
-        title = article_data['title']
-        publish_time = article_data.get('publish_time', '')
-
-        # 使用发布时间作为文件名前缀
-        try:
-            date_obj = datetime.fromisoformat(publish_time)
-            timestamp = date_obj.strftime('%Y%m%d_%H%M%S')
-        except:
-            # 如果发布时间解析失败，使用当前时间
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-
-        # 生成文件名（使用发布时间）
-        safe_title = self._sanitize_filename(title)
-        filename = f"{timestamp}_{safe_title}"
+        filename = self.build_article_filename(article_data)
 
         # 保存HTML到html目录
         html_path = self.html_dir / f"{filename}.html"
@@ -86,9 +87,59 @@ class FileStore:
         # 保存Markdown到markdown目录
         md_path = self.md_dir / f"{filename}.md"
         with open(md_path, 'w', encoding='utf-8') as f:
-            f.write(self._generate_markdown(article_data))
+            f.write(content_markdown if content_markdown is not None else self.render_markdown(article_data))
 
         return str(html_path)
+
+    def get_markdown_content(self, article_data):
+        """Return Markdown content for preview or export."""
+        content_markdown = article_data.get('content_markdown')
+        if content_markdown:
+            return content_markdown
+
+        if article_data.get('content_html'):
+            return self.render_markdown(article_data)
+
+        raise ValueError("该文章暂无可导出的 Markdown 内容")
+
+    def export_markdown_article(self, article_data, output_dir):
+        """Export one article as a standalone Markdown file."""
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        export_path = output_dir / f"{self.build_article_filename(article_data)}.md"
+        export_path.write_text(self.get_markdown_content(article_data), encoding='utf-8')
+        return str(export_path)
+
+    def delete_article_files(self, article_data):
+        """Delete local HTML/Markdown backups for one article if they exist."""
+        removed = []
+
+        file_path = article_data.get("file_path")
+        if file_path:
+            html_path = Path(file_path)
+            if html_path.exists():
+                html_path.unlink()
+                removed.append(str(html_path))
+
+            md_path = self.md_dir / f"{html_path.stem}.md"
+            if md_path.exists():
+                md_path.unlink()
+                removed.append(str(md_path))
+            return removed
+
+        filename = f"{self.build_article_filename(article_data)}"
+        html_path = self.html_dir / f"{filename}.html"
+        md_path = self.md_dir / f"{filename}.md"
+
+        if html_path.exists():
+            html_path.unlink()
+            removed.append(str(html_path))
+        if md_path.exists():
+            md_path.unlink()
+            removed.append(str(md_path))
+
+        return removed
 
     def _generate_html(self, article_data):
         """生成完整的HTML文件"""
@@ -117,16 +168,16 @@ class FileStore:
 </html>"""
         return html
 
-    def _generate_markdown(self, article_data):
-        """生成Markdown文件"""
+    def render_markdown(self, article_data):
+        """将文章内容渲染为Markdown文档"""
         # 转换HTML内容为Markdown
-        content_md = md(article_data['content_html'], heading_style="ATX")
+        content_md = md(article_data.get('content_html', ''), heading_style="ATX")
 
         # 生成完整的Markdown文档
-        markdown = f"""# {article_data['title']}
+        markdown = f"""# {article_data.get('title') or '无标题'}
 
 **发布时间**: {article_data.get('publish_time', 'N/A')}
-**原文链接**: {article_data['url']}
+**原文链接**: {article_data.get('url', '')}
 
 ---
 

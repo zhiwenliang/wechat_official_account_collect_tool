@@ -1,49 +1,26 @@
 """
 Article Content Preview Dialog
-Allows viewing HTML and Markdown content of articles
+Allows viewing Markdown content of articles
 """
 import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox
 import webbrowser
 import os
-from pathlib import Path
-from html.parser import HTMLParser
 import re
+from io import BytesIO
+from pathlib import Path
+from urllib.parse import urlparse, unquote
 
+import requests
+from PIL import Image, ImageTk
 
-class HTMLToTextParser(HTMLParser):
-    """Simple HTML to text converter for preview"""
-    def __init__(self):
-        super().__init__()
-        self.text = []
-        self.in_body = False
-
-    def handle_starttag(self, tag, attrs):
-        if tag == 'body':
-            self.in_body = True
-        elif tag == 'p':
-            self.text.append('\n')
-        elif tag == 'br':
-            self.text.append('\n')
-        elif tag in ('h1', 'h2', 'h3', 'h4', 'h5', 'h6'):
-            self.text.append('\n' + '#' * int(tag[1]) + ' ')
-
-    def handle_endtag(self, tag):
-        if tag == 'body':
-            self.in_body = False
-        elif tag == 'p':
-            self.text.append('\n')
-
-    def handle_data(self, data):
-        if self.in_body:
-            self.text.append(data)
-
-    def get_text(self):
-        return ''.join(self.text)
+from storage.file_store import FileStore
 
 
 class ArticlePreviewDialog:
     """Dialog for previewing article content"""
+
+    IMAGE_PATTERN = re.compile(r'!\[(.*?)\]\(([^)]+)\)')
 
     def __init__(self, parent, article_data):
         """
@@ -55,6 +32,8 @@ class ArticlePreviewDialog:
                           status, content_html, content_markdown, file_path
         """
         self.article_data = article_data
+        self.file_store = FileStore()
+        self.preview_images = []
         self.dialog = tk.Toplevel(parent)
         self.dialog.title(f"文章预览 - {article_data.get('title', '无标题')[:30]}")
         self.dialog.geometry("900x700")
@@ -102,20 +81,6 @@ class ArticlePreviewDialog:
         button_frame = ttk.Frame(self.dialog, padding=(10, 5))
         button_frame.pack(fill=tk.X)
 
-        # View type selector
-        ttk.Label(button_frame, text="查看方式:").pack(side=tk.LEFT)
-
-        self.view_var = tk.StringVar(value="markdown")
-        view_combo = ttk.Combobox(
-            button_frame,
-            textvariable=self.view_var,
-            values=["markdown", "html"],
-            state="readonly",
-            width=10
-        )
-        view_combo.pack(side=tk.LEFT, padx=(5, 20))
-        view_combo.bind("<<ComboboxSelected>>", self._on_view_change)
-
         # Action buttons
         ttk.Button(
             button_frame,
@@ -159,43 +124,100 @@ class ArticlePreviewDialog:
         )
         self.status_label.pack(side=tk.LEFT)
 
-        word_count = len(self.article_data.get('content_markdown', ''))
+        try:
+            word_count = len(self.file_store.get_markdown_content(self.article_data))
+        except ValueError:
+            word_count = 0
         ttk.Label(status_frame, text=f"  |  字数: {word_count}").pack(side=tk.LEFT)
 
     def _load_content(self):
-        """Load content based on selected view type"""
-        view_type = self.view_var.get()
-        content = ""
-
-        if view_type == "markdown":
-            content = self.article_data.get('content_markdown', '')
-            if not content and self.article_data.get('content_html'):
-                # Fallback: convert HTML to Markdown
-                parser = HTMLToTextParser()
-                parser.feed(self.article_data['content_html'])
-                content = parser.get_text()
-        else:  # html
-            content = self._clean_html_for_preview(
-                self.article_data.get('content_html', '')
-            )
+        """Load Markdown content for preview."""
+        try:
+            content = self.file_store.get_markdown_content(self.article_data)
+        except ValueError:
+            content = ""
 
         if not content:
             content = "(无内容)"
 
-        # Display content
+        self.preview_images = []
+        self.text_widget.config(state=tk.NORMAL)
         self.text_widget.delete(1.0, tk.END)
-        self.text_widget.insert(1.0, content)
+        self._render_markdown_content(content)
+        self.text_widget.config(state=tk.DISABLED)
 
-    def _clean_html_for_preview(self, html_content):
-        """Clean HTML content for text preview"""
-        # Extract text content
-        parser = HTMLToTextParser()
-        parser.feed(html_content)
-        return parser.get_text()
+    def _render_markdown_content(self, content):
+        """Render Markdown text and inline image previews."""
+        for line in content.splitlines():
+            self.text_widget.insert(tk.END, f"{line}\n")
+            image_matches = list(self.IMAGE_PATTERN.finditer(line))
+            for match in image_matches:
+                alt_text = match.group(1).strip()
+                image_url = self._extract_image_url(match.group(2))
+                self._insert_image_preview(image_url, alt_text)
 
-    def _on_view_change(self, event=None):
-        """Handle view type change"""
-        self._load_content()
+    def _extract_image_url(self, raw_target):
+        """Extract the actual image URL/path from a Markdown image target."""
+        target = raw_target.strip().strip("<>").strip()
+        if " " in target:
+            target = target.split(" ", 1)[0]
+        return target
+
+    def _insert_image_preview(self, image_url, alt_text):
+        """Insert one image preview into the text widget."""
+        self.text_widget.insert(tk.END, "\n")
+        try:
+            image_bytes = self._read_image_bytes(image_url)
+            pil_image = Image.open(BytesIO(image_bytes))
+            pil_image.load()
+
+            max_width = max(320, self.text_widget.winfo_width() - 60)
+            if max_width <= 320:
+                max_width = 760
+            pil_image.thumbnail((max_width, 480))
+
+            tk_image = ImageTk.PhotoImage(pil_image)
+            self.preview_images.append(tk_image)
+            self.text_widget.image_create(tk.END, image=tk_image)
+
+            caption = alt_text or Path(urlparse(image_url).path).name or "图片"
+            self.text_widget.insert(tk.END, f"\n[图片] {caption}\n\n")
+        except Exception as exc:
+            fallback = alt_text or "未命名图片"
+            self.text_widget.insert(
+                tk.END,
+                f"[图片加载失败] {fallback}\n{image_url}\n{exc}\n\n"
+            )
+
+    def _read_image_bytes(self, image_url):
+        """Read image bytes from a remote URL or local path."""
+        parsed = urlparse(image_url)
+
+        if parsed.scheme in {"http", "https"}:
+            response = requests.get(image_url, timeout=10)
+            response.raise_for_status()
+            return response.content
+
+        if parsed.scheme == "file":
+            return Path(unquote(parsed.path)).read_bytes()
+
+        local_path = Path(image_url)
+        if local_path.is_absolute() and local_path.exists():
+            return local_path.read_bytes()
+
+        candidate_paths = []
+        file_path = self.article_data.get("file_path")
+        if file_path:
+            article_dir = Path(file_path).resolve().parent
+            candidate_paths.append(article_dir / image_url)
+            candidate_paths.append(article_dir.parent / image_url)
+        candidate_paths.append(Path.cwd() / image_url)
+
+        for candidate in candidate_paths:
+            if candidate.exists():
+                return candidate.read_bytes()
+
+        raise FileNotFoundError(f"找不到图片: {image_url}")
 
     def _open_in_browser(self):
         """Open article in browser"""

@@ -5,14 +5,12 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Callable, Optional
 
-from markdownify import markdownify as md
-
 from storage.database import Database
 from storage.file_store import FileStore
 
 
 LogFn = Callable[[str], None]
-ProgressFn = Callable[[int, int, str], None]
+ProgressFn = Callable[..., None]
 
 
 @dataclass
@@ -34,9 +32,15 @@ class ScrapeResult:
     index_path: Optional[str] = None
 
 
-def _emit_progress(progress: Optional[ProgressFn], current: int, total: int, message: str = ""):
+def _emit_progress(
+    progress: Optional[ProgressFn],
+    current: int,
+    total: int,
+    message: str = "",
+    **kwargs,
+):
     if progress:
-        progress(current, total, message)
+        progress(current, total, message, **kwargs)
 
 
 def run_collection_workflow(collector, *, log: LogFn = print, progress: Optional[ProgressFn] = None):
@@ -53,6 +57,20 @@ def run_collection_workflow(collector, *, log: LogFn = print, progress: Optional
     consecutive_failures = 0
     max_consecutive_failures = 10
     stopped = False
+
+    def save_link(link: str) -> bool:
+        """Persist a collected link and report whether it is new."""
+        if link in collector.collected_links:
+            log("  重复链接，已跳过")
+            return False
+
+        collector.collected_links.add(link)
+        added_id = collector.db.add_article(link)
+        if added_id is None:
+            log("  链接已存在于数据库，已跳过")
+            return False
+
+        return True
 
     log(f"开始采集 (最多{max_articles}篇)\n")
 
@@ -96,10 +114,7 @@ def run_collection_workflow(collector, *, log: LogFn = print, progress: Optional
                     log(f"\n刷新后仍检测到连续{duplicate_count}次相同链接，确认已滚动到底")
                     break
 
-            if link not in collector.collected_links:
-                collector.collected_links.add(link)
-                collector.db.add_article(link)
-
+            if save_link(link):
                 article_count += 1
                 log(f"  已保存: {link}")
                 has_refreshed = False
@@ -111,8 +126,6 @@ def run_collection_workflow(collector, *, log: LogFn = print, progress: Optional
                         stopped = collector.should_stop()
                         if stopped:
                             break
-            else:
-                log("  重复链接，已跳过")
         else:
             log("  未获取到有效链接")
             consecutive_failures += 1
@@ -147,10 +160,7 @@ def run_collection_workflow(collector, *, log: LogFn = print, progress: Optional
                 stopped = True
                 break
 
-            if link and link not in collector.collected_links:
-                collector.collected_links.add(link)
-                collector.db.add_article(link)
-
+            if link and save_link(link):
                 article_count += 1
                 log(f"  已保存: {link}")
                 _emit_progress(progress, article_count, max_articles)
@@ -183,6 +193,7 @@ def run_scrape_workflow(
     db: Optional[Database] = None,
     file_store: Optional[FileStore] = None,
     scraper=None,
+    pending_articles=None,
     log: LogFn = print,
     progress: Optional[ProgressFn] = None,
 ):
@@ -193,7 +204,7 @@ def run_scrape_workflow(
     if scraper is None:
         raise ValueError("scraper is required")
 
-    pending = db.get_pending_articles()
+    pending = pending_articles if pending_articles is not None else db.get_pending_articles()
     start_time = datetime.now()
 
     log(f"开始时间: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
@@ -230,7 +241,6 @@ def run_scrape_workflow(
                 continue
 
             log(f"[{idx}/{len(pending)}] 抓取: {url}")
-            _emit_progress(progress, idx, len(pending))
 
             article_data = scraper.scrape_article(url)
 
@@ -239,8 +249,8 @@ def run_scrape_workflow(
                 break
 
             if article_data:
-                content_markdown = md(article_data.get('content_html', ''), heading_style="ATX")
-                file_path = file_store.save_article(article_data)
+                content_markdown = file_store.render_markdown(article_data)
+                file_path = file_store.save_article(article_data, content_markdown=content_markdown)
 
                 db.update_article(
                     url,
@@ -258,6 +268,15 @@ def run_scrape_workflow(
                 db.update_article(url, status='failed')
                 log("  抓取失败")
                 failed_count += 1
+
+            _emit_progress(
+                progress,
+                idx,
+                len(pending),
+                message=f"已处理 {idx}/{len(pending)} 篇",
+                success=success_count,
+                failed=failed_count,
+            )
     finally:
         scraper.stop()
 
@@ -295,6 +314,12 @@ def reset_failed_articles(db: Optional[Database] = None):
     """Reset failed article status to pending."""
     db = db or Database()
     return db.reset_failed()
+
+
+def reset_empty_content_articles(db: Optional[Database] = None):
+    """Reset scraped-but-empty articles to pending."""
+    db = db or Database()
+    return db.reset_empty_content()
 
 
 def generate_article_index(file_store: Optional[FileStore] = None):

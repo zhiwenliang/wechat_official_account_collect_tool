@@ -4,13 +4,14 @@
 """
 import pyautogui
 import pyperclip
-import time
 import json
 import platform
 from pathlib import Path
 from collections import deque
+from services.calibration_service import load_required_coordinates_config
 from services.workflows import run_collection_workflow
 from storage.database import Database
+from utils.stop_control import should_stop as stop_requested, sleep_with_stop
 
 class LinkCollector:
     def __init__(self, config_path="config/coordinates.json"):
@@ -24,6 +25,9 @@ class LinkCollector:
 
     def _load_config(self, config_path):
         """加载坐标配置"""
+        if config_path == "config/coordinates.json":
+            return load_required_coordinates_config()
+
         path = Path(config_path)
 
         # 确保config目录存在
@@ -54,18 +58,11 @@ class LinkCollector:
 
     def should_stop(self):
         """检查是否收到停止信号"""
-        return bool(self.stop_checker and self.stop_checker())
+        return stop_requested(self.stop_checker)
 
     def _sleep_with_stop(self, duration):
         """可响应停止信号的睡眠"""
-        deadline = time.time() + duration
-
-        while time.time() < deadline:
-            if self.should_stop():
-                return False
-            time.sleep(max(0, min(0.1, deadline - time.time())))
-
-        return not self.should_stop()
+        return sleep_with_stop(self.stop_checker, duration)
 
     def _activate_article_window(self):
         """激活公众号窗口"""

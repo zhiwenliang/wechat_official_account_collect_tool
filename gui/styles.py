@@ -23,11 +23,25 @@ FONT_TITLE = ("Helvetica", 14, "bold")
 FONT_LABEL = ("Helvetica", 11)
 FONT_BUTTON = ("Helvetica", 10)
 FONT_LOG = ("Consolas", 9)
+FONT_TABLE = ("Helvetica", 10)
+FONT_TABLE_HEADING = ("Helvetica", 10, "bold")
+FONT_HELP = ("Helvetica", 10)
+FONT_HELP_LARGE = ("Helvetica", 11)
 
 # Sizes
 WINDOW_WIDTH = 1000
 WINDOW_HEIGHT = 700
 LOG_HEIGHT = 150
+
+# Layout spacing
+PAGE_PAD = 16
+PAGE_PAD_SMALL = 12
+SECTION_GAP = 8
+SECTION_GAP_SMALL = 6
+CARD_PAD = 16
+CONTROL_PAD = 12
+STATUS_PAD_X = 8
+STATUS_PAD_Y = 4
 
 # Tab names
 TAB_DASHBOARD = "仪表盘"
@@ -44,6 +58,6 @@ STATUS_DONE = "完成"
 STATUS_ERROR = "错误"
 
 # Progress messages
-PROGRESS_COLLECTING = "正在采集链接: {current}/{total}"
+PROGRESS_COLLECTING = "正在采集链接: {current}"
 PROGRESS_SCRAPING = "正在抓取文章: {current}/{total}"
 PROGRESS_CALIBRATING = "校准进度: {step}/{total} - {description}"
