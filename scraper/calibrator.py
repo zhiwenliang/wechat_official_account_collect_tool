@@ -285,7 +285,8 @@ def test_calibration():
         print("  ⚠ 位置不准确，建议重新校准")
         return False
 
-    pyautogui.click()
+    # 显式点击第一个标签以激活当前标签页，再进行关闭按钮测试
+    pyautogui.click(first_tab['x'], first_tab['y'])
     time.sleep(0.5)
 
     # 测试点击关闭按钮
@@ -298,7 +299,7 @@ def test_calibration():
 
     # 关闭2个标签
     for i in range(2):
-        pyautogui.click()
+        pyautogui.click(close_btn['x'], close_btn['y'])
         time.sleep(0.3)
 
     confirm = input("  标签是否正确关闭？(y/n): ").strip().lower()

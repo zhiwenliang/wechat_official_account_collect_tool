@@ -65,22 +65,19 @@ python main.py calibrate
 # 2. 测试校准结果（可选）
 python main.py test
 
-# 3. 采集链接（需要手动准备微信窗口）
+# 3. 采集链接（需要手动准备微信窗口，链接直接存入数据库）
 python main.py collect
 
-# 4. 导入链接到数据库
-python main.py import
-
-# 5. 抓取文章内容（完成后自动生成索引）
+# 4. 抓取文章内容（完成后自动生成索引）
 python main.py scrape
 
-# 6. 查看数据库统计信息
+# 5. 查看数据库统计信息
 python main.py stats
 
-# 7. 重新抓取失败的文章
+# 6. 重新抓取失败的文章
 python main.py retry
 
-# 8. 单独生成文章目录索引（可选）
+# 7. 单独生成文章目录索引（可选）
 python main.py index
 ```
 
@@ -139,14 +136,9 @@ python main.py collect
 ```
 - 采集过程中不要移动鼠标或操作电脑
 - 鼠标移到屏幕角落可紧急停止
-- 链接保存到 `data/links.txt`
+- 链接直接保存到数据库
 
 ### 阶段2：抓取文章内容
-
-**导入链接**：
-```bash
-python main.py import
-```
 
 **抓取内容**：
 ```bash
@@ -157,7 +149,7 @@ python main.py scrape
 - 自动滚动加载所有图片
 - 同时保存HTML和Markdown格式
 - 文件名使用发布时间作为前缀：`YYYYMMDD_HHMMSS_标题.md`
-- 完成后自动生成文章目录索引：`data/articles/INDEX.md`
+- 完成后自动生成文章目录索引：`data/articles/markdown/INDEX.md`
 
 ## 项目结构
 
@@ -174,7 +166,6 @@ wechat_official_account_collect_tool/
 │   └── file_store.py         # 文件存储（HTML + Markdown）
 ├── data/
 │   ├── articles.db           # SQLite数据库
-│   ├── links.txt             # 采集的链接列表
 │   └── articles/             # 文章备份目录
 │       ├── html/             # HTML格式文件
 │       │   └── *.html

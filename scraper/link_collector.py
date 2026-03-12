@@ -9,6 +9,7 @@ import json
 import platform
 from pathlib import Path
 from collections import deque
+from storage.database import Database
 
 class LinkCollector:
     def __init__(self, config_path="config/coordinates.json"):
@@ -16,6 +17,7 @@ class LinkCollector:
         self.collected_links = set()
         self.recent_links = deque(maxlen=5)
         self.is_macos = platform.system() == 'Darwin'
+        self.db = Database()
         pyautogui.FAILSAFE = True
 
     def _load_config(self, config_path):
@@ -152,7 +154,7 @@ class LinkCollector:
 
         print("  ✓ 标签已清理\n")
 
-    def run(self, output_file="data/links.txt"):
+    def run(self):
         """运行采集流程"""
         from datetime import datetime
         start_time = datetime.now()
@@ -173,9 +175,6 @@ class LinkCollector:
 
         # 初始化点击位置（第一篇文章中间）
         current_click_y = self.config['windows']['article_list']['article_click_area']['y']
-
-        output_path = Path(output_file)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
 
         article_count = 0
         max_articles = self.config['collection']['max_articles']
@@ -218,8 +217,8 @@ class LinkCollector:
                 if link not in self.collected_links:
                     self.collected_links.add(link)
 
-                    with open(output_path, 'a', encoding='utf-8') as f:
-                        f.write(link + '\n')
+                    # 保存到数据库
+                    self.db.add_article(link)
 
                     article_count += 1
                     print(f"  ✓ 已保存: {link}")
@@ -262,8 +261,8 @@ class LinkCollector:
                 if link and link not in self.collected_links:
                     self.collected_links.add(link)
 
-                    with open(output_path, 'a', encoding='utf-8') as f:
-                        f.write(link + '\n')
+                    # 保存到数据库
+                    self.db.add_article(link)
 
                     article_count += 1
                     print(f"  ✓ 已保存: {link}")
@@ -273,10 +272,11 @@ class LinkCollector:
         elapsed = end_time - start_time
 
         print(f"采集完成！共采集 {article_count} 篇文章")
-        print(f"保存位置: {output_path.absolute()}")
+        print(f"数据已保存到数据库: data/articles.db")
         print(f"\n开始时间: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"结束时间: {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"总耗时: {elapsed.total_seconds():.1f} 秒 ({elapsed.total_seconds()/60:.1f} 分钟)")
+        print(f"\n下一步: 运行 'python main.py scrape' 抓取文章内容")
 
 if __name__ == "__main__":
     collector = LinkCollector()

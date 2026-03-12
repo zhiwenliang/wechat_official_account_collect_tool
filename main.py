@@ -3,30 +3,11 @@
 整合链接采集和内容抓取功能
 """
 import sys
-from pathlib import Path
 from scraper.link_collector import LinkCollector
 from scraper.content_scraper import ContentScraper
 from storage.database import Database
 from storage.file_store import FileStore
-
-def import_links_to_db():
-    """将links.txt中的链接导入数据库"""
-    db = Database()
-    links_file = Path("data/links.txt")
-
-    if not links_file.exists():
-        print("未找到 data/links.txt 文件")
-        return
-
-    with open(links_file, 'r', encoding='utf-8') as f:
-        links = [line.strip() for line in f if line.strip()]
-
-    added = 0
-    for link in links:
-        if db.add_article(link):
-            added += 1
-
-    print(f"导入完成：共 {len(links)} 条链接，新增 {added} 条")
+from markdownify import markdownify as md
 
 def scrape_content():
     """抓取文章内容"""
@@ -60,6 +41,9 @@ def scrape_content():
             article_data = scraper.scrape_article(url)
 
             if article_data:
+                # 生成 Markdown
+                content_markdown = md(article_data.get('content_html', ''), heading_style="ATX")
+
                 file_path = file_store.save_article(article_data)
 
                 db.update_article(
@@ -68,6 +52,8 @@ def scrape_content():
                     publish_time=article_data['publish_time'],
                     scraped_at=article_data['scraped_at'],
                     file_path=file_path,
+                    content_html=article_data.get('content_html', ''),
+                    content_markdown=content_markdown,
                     status='scraped'
                 )
                 print(f"  ✓ 已保存: {file_path}")
@@ -138,8 +124,7 @@ def main():
         print("用法:")
         print("  python main.py calibrate  - 校准坐标")
         print("  python main.py test       - 测试校准结果")
-        print("  python main.py collect    - 采集链接")
-        print("  python main.py import     - 导入链接到数据库")
+        print("  python main.py collect    - 采集链接（直接存入数据库）")
         print("  python main.py scrape     - 抓取文章内容")
         print("  python main.py index      - 生成文章目录索引")
         print("  python main.py stats      - 显示数据库统计信息")
@@ -157,8 +142,6 @@ def main():
     elif command == "collect":
         collector = LinkCollector()
         collector.run()
-    elif command == "import":
-        import_links_to_db()
     elif command == "scrape":
         scrape_content()
     elif command == "index":

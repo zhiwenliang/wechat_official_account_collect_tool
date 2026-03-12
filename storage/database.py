@@ -25,7 +25,9 @@ class Database:
                 publish_time TEXT,
                 scraped_at TEXT,
                 status TEXT DEFAULT 'pending',
-                file_path TEXT
+                file_path TEXT,
+                content_html TEXT,
+                content_markdown TEXT
             )
         """)
 
@@ -127,12 +129,19 @@ class Database:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
-        cursor.execute("""
-            SELECT id, url, title, publish_time, scraped_at, file_path
-            FROM articles
-            WHERE status = ?
-            ORDER BY id
-        """, (status,))
+        if status == "all":
+            cursor.execute("""
+                SELECT id, url, title, publish_time, scraped_at, file_path, status
+                FROM articles
+                ORDER BY id
+            """)
+        else:
+            cursor.execute("""
+                SELECT id, url, title, publish_time, scraped_at, file_path, status
+                FROM articles
+                WHERE status = ?
+                ORDER BY id
+            """, (status,))
         articles = cursor.fetchall()
         conn.close()
 
