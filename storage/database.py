@@ -85,6 +85,17 @@ class Database:
 
         return exists
 
+    def get_article_status(self, url):
+        """根据URL获取文章状态，不存在时返回None"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT status FROM articles WHERE url = ?", (url,))
+        row = cursor.fetchone()
+        conn.close()
+
+        return row[0] if row else None
+
     def get_statistics(self):
         """获取统计信息"""
         conn = sqlite3.connect(self.db_path)

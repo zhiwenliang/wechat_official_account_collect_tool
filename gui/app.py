@@ -43,6 +43,7 @@ class WeChatScraperGUI:
         self.calibration_callback = None
 
         self._setup_ui()
+        self.root.bind_all("<Escape>", self._handle_escape_stop)
         self._update_statistics()
 
     def _setup_ui(self):
@@ -654,6 +655,7 @@ class WeChatScraperGUI:
         # Clear log
         self.collect_log.delete(1.0, tk.END)
         self.collect_progress['value'] = 0
+        self.collect_log.insert(tk.END, "提示: 运行过程中可点击“停止”或按 Esc 停止任务。\n\n")
 
         # Create worker
         self.current_worker = LinkCollectorWorker()
@@ -710,6 +712,7 @@ class WeChatScraperGUI:
         self.scrape_progress['value'] = 0
         self.scrape_success_label.config(text="成功: 0")
         self.scrape_failed_label.config(text="失败: 0")
+        self.scrape_log.insert(tk.END, "提示: 运行过程中可点击“停止”或按 Esc 停止任务。\n\n")
 
         # Create worker
         self.current_worker = ContentScraperWorker()
@@ -771,6 +774,12 @@ class WeChatScraperGUI:
                 self._reset_start_buttons()
 
         wait_for_stop()
+
+    def _handle_escape_stop(self, event=None):
+        """Handle Esc key as a stop signal for active tasks."""
+        if not self.current_worker or not self.current_worker.is_alive() or self.is_stopping:
+            return
+        self._stop_worker()
 
     def _reset_start_buttons(self):
         """Reset start buttons to normal state after stop completes"""

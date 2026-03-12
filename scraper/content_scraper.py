@@ -10,12 +10,28 @@ from datetime import datetime
 from pathlib import Path
 
 class ContentScraper:
-    def __init__(self, max_retries=3, retry_delay=10):
+    def __init__(self, max_retries=3, retry_delay=10, stop_checker=None):
         self.playwright = None
         self.browser = None
         self.page = None
         self.max_retries = max_retries
         self.retry_delay = retry_delay
+        self.stop_checker = stop_checker
+
+    def should_stop(self):
+        """检查是否收到停止信号"""
+        return bool(self.stop_checker and self.stop_checker())
+
+    def _sleep_with_stop(self, duration):
+        """可响应停止信号的睡眠"""
+        deadline = time.time() + duration
+
+        while time.time() < deadline:
+            if self.should_stop():
+                return False
+            time.sleep(max(0, min(0.1, deadline - time.time())))
+
+        return not self.should_stop()
 
     def _parse_publish_time(self, time_str):
         """解析发布时间，支持中文格式"""
@@ -49,12 +65,18 @@ class ContentScraper:
     def scrape_article(self, url):
         """抓取单篇文章"""
         for attempt in range(self.max_retries):
+            if self.should_stop():
+                return None
+
             try:
                 self.page.goto(url, timeout=30000)
-                time.sleep(3)
+                if not self._sleep_with_stop(3):
+                    return None
 
                 # 等待内容加载
                 self.page.wait_for_selector('#js_content', timeout=10000)
+                if self.should_stop():
+                    return None
 
                 # 提取标题
                 title = self.page.locator('#activity-name').inner_text()
@@ -78,10 +100,13 @@ class ContentScraper:
                 }
 
             except Exception as e:
+                if self.should_stop():
+                    return None
                 if attempt < self.max_retries - 1:
                     print(f"  抓取失败 (尝试 {attempt + 1}/{self.max_retries}): {e}")
                     print(f"  等待{self.retry_delay}秒后重试...")
-                    time.sleep(self.retry_delay)
+                    if not self._sleep_with_stop(self.retry_delay):
+                        return None
                 else:
                     print(f"  抓取失败 (已重试{self.max_retries}次): {e}")
                     return None
@@ -91,6 +116,9 @@ class ContentScraper:
     def _scroll_to_load_images(self):
         """滚动页面以加载所有图片"""
         try:
+            if self.should_stop():
+                return
+
             # 获取页面总高度
             total_height = self.page.evaluate("document.body.scrollHeight")
             viewport_height = self.page.evaluate("window.innerHeight")
@@ -102,17 +130,21 @@ class ContentScraper:
 
             # 逐步滚动到底部
             for i in range(scroll_steps):
+                if self.should_stop():
+                    return
                 scroll_position = viewport_height * i
                 self.page.evaluate(f"window.scrollTo(0, {scroll_position})")
-                time.sleep(0.5)  # 等待图片加载
+                if not self._sleep_with_stop(0.5):
+                    return
 
             # 滚动到底部
             self.page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-            time.sleep(1)
+            if not self._sleep_with_stop(1):
+                return
 
             # 滚回顶部
             self.page.evaluate("window.scrollTo(0, 0)")
-            time.sleep(0.5)
+            self._sleep_with_stop(0.5)
 
             print(f"  [OK] 图片加载完成")
 

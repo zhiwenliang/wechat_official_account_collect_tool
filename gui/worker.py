@@ -8,12 +8,15 @@ import time
 import pyautogui
 import json
 from pathlib import Path
+from services.workflows import (
+    generate_article_index,
+    reset_failed_articles,
+    run_collection_workflow,
+    run_scrape_workflow,
+)
 from scraper.link_collector import LinkCollector
 from scraper.content_scraper import ContentScraper
 from storage.database import Database
-from storage.file_store import FileStore
-from markdownify import markdownify as md
-from datetime import datetime
 
 
 class WorkerSignals:
@@ -74,203 +77,26 @@ class LinkCollectorWorker(WorkerThread):
 
     def run(self):
         """Run the link collection process"""
-        stopped = False  # Single flag to track if we stopped
-
         try:
             self.emit_status("初始化中...")
 
             collector = LinkCollector()
-            start_time = datetime.now()
-
-            self.emit_log(f"开始时间: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
-            self.emit_log("准备采集链接...\n")
-
-            # Share stop flag with collector
-            collector.stop_requested = self._stop_requested
-
-            # Override collect_link to check stop flag frequently
-            def collect_link_with_stop():
-                if self.should_stop():
-                    return None
-
-                import pyperclip
-                max_retries = 3
-
-                for attempt in range(max_retries):
-                    if self.should_stop():
-                        return None
-
-                    try:
-                        pyperclip.copy("")
-
-                        more_btn = collector.config['windows']['browser']['more_button']
-                        collector._click(more_btn['x'], more_btn['y'], "更多按钮")
-
-                        wait_time = collector.config['timing']['menu_open_wait'] + attempt
-                        time.sleep(wait_time)
-
-                        # Check stop after sleep
-                        if self.should_stop():
-                            return None
-
-                        copy_menu = collector.config['windows']['browser']['copy_link_menu']
-                        collector._click(copy_menu['x'], copy_menu['y'], "复制链接")
-                        time.sleep(wait_time)
-
-                        # Check stop after sleep
-                        if self.should_stop():
-                            return None
-
-                        link = pyperclip.paste().strip()
-
-                        if link and link.startswith('http'):
-                            if attempt > 0:
-                                print(f"  ✓ 重试成功（第{attempt + 1}次尝试）")
-                            return link
-                        else:
-                            if attempt < max_retries - 1:
-                                print(f"  ⚠ 未获取到有效链接，{attempt + 1}秒后重试...")
-                            else:
-                                print(f"  ✗ 重试{max_retries}次后仍未获取到有效链接")
-
-                    except Exception as e:
-                        if attempt < max_retries - 1:
-                            print(f"  ⚠ 采集失败: {e}，{attempt + 1}秒后重试...")
-                        else:
-                            print(f"  ✗ 重试{max_retries}次后仍失败: {e}")
-
-                return None
-
-            # Keep both names to avoid mismatches in older code paths.
-            collector.collect_link = collect_link_with_stop
-            collector.collect_link_with_stop = collect_link_with_stop
-
-            # Initialize
-            current_click_y = collector.config['windows']['article_list']['article_click_area']['y']
-            article_count = 0
-            max_articles = collector.config['collection']['max_articles']
-            has_refreshed = False
-            consecutive_failures = 0
-            max_consecutive_failures = 10
-
-            self.emit_log(f"开始采集 (最多{max_articles}篇)\n")
+            collector.stop_checker = self.should_stop
             self.emit_status("采集中...")
+            result = run_collection_workflow(
+                collector,
+                log=self.emit_log,
+                progress=self.emit_progress,
+            )
 
-            # Main collection loop
-            while article_count < max_articles and not self.should_stop():
-                self.emit_log(f"\n[{article_count + 1}] 处理中...")
-
-                collector.click_article(current_click_y)
-
-                # Check stop after click
-                if self.should_stop():
-                    stopped = True
-                    break
-
-                link = collector.collect_link_with_stop()
-
-                if link:
-                    collector.recent_links.append(link)
-                    consecutive_failures = 0
-
-                    # Check for duplicates
-                    duplicate_count = collector._check_duplicate_count()
-
-                    if duplicate_count >= 2 and duplicate_count < 5:
-                        self.emit_log(f"  检测到连续{duplicate_count}次相同链接，继续滚动...")
-                    elif duplicate_count >= 5:
-                        if not has_refreshed:
-                            self.emit_log(f"\n检测到连续{duplicate_count}次相同链接，尝试刷新页面...")
-                            collector.refresh_scroll()
-                            has_refreshed = True
-                            collector.recent_links.clear()
-                            continue
-                        else:
-                            self.emit_log(f"\n刷新后仍检测到连续{duplicate_count}次相同链接，确认已滚动到底")
-                            break
-
-                    if link not in collector.collected_links:
-                        collector.collected_links.add(link)
-                        collector.db.add_article(link)
-                        article_count += 1
-                        self.emit_log(f"  已保存: {link}")
-                        has_refreshed = False
-
-                        # Update progress
-                        self.emit_progress(article_count, max_articles)
-
-                        # Close tabs every 30 articles
-                        if article_count % 30 == 0:
-                            self.emit_log(f"\n已采集{article_count}篇，清理标签...")
-                            collector.close_tabs()
-                    else:
-                        self.emit_log(f"  重复链接，已跳过")
-                else:
-                    self.emit_log(f"  未获取到有效链接")
-                    consecutive_failures += 1
-
-                    if consecutive_failures >= max_consecutive_failures:
-                        self.emit_log(f"\n连续{consecutive_failures}次未获取到有效链接，停止采集")
-                        break
-
-                # Check stop before scroll
-                if self.should_stop():
-                    stopped = True
-                    break
-
-                collector.scroll_article()
-
-            # If stopped, emit complete immediately and return
-            if stopped:
-                self.emit_log("\n收到停止信号，正在停止...")
-                self.emit_status("已停止")
-                # Small delay to ensure GUI receives the log before complete
-                time.sleep(0.05)
-                self.emit_complete(stopped=True, count=article_count)
-                return
-
-            # Process remaining visible articles (only if not stopped)
-            if article_count < max_articles and not self.should_stop():
-                remaining_count = collector.config['windows']['article_list']['visible_articles']
-                self.emit_log(f"\n处理剩余 {remaining_count} 篇可见文章（不滚动）\n")
-
-                for i in range(remaining_count):
-                    if self.should_stop() or article_count >= max_articles:
-                        stopped = True
-                        break
-
-                    self.emit_log(f"\n[剩余{i+1}/{remaining_count}] 处理中...")
-
-                    collector.click_article(current_click_y)
-                    link = collector.collect_link_with_stop()
-
-                    if link and link not in collector.collected_links:
-                        collector.collected_links.add(link)
-                        collector.db.add_article(link)
-                        article_count += 1
-                        self.emit_log(f"  已保存: {link}")
-                        self.emit_progress(article_count, max_articles)
-
-            # If stopped during remaining processing, emit complete immediately
-            if stopped:
-                self.emit_log("\n收到停止信号，正在停止...")
+            if result.stopped:
                 self.emit_status("已停止")
                 time.sleep(0.05)
-                self.emit_complete(stopped=True, count=article_count)
+                self.emit_complete(stopped=True, count=result.count)
                 return
-
-            # Normal completion
-            end_time = datetime.now()
-            elapsed = end_time - start_time
-
-            self.emit_log("\n" + "=" * 60)
-            self.emit_log(f"采集完成！共采集 {article_count} 篇文章")
-            self.emit_log(f"开始时间: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
-            self.emit_log(f"结束时间: {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
-            self.emit_log(f"总耗时: {elapsed.total_seconds():.1f} 秒")
 
             self.emit_status("完成")
-            self.emit_complete(stopped=False, count=article_count)
+            self.emit_complete(stopped=False, count=result.count)
 
         except Exception as e:
             self.emit_status("错误")
@@ -282,96 +108,38 @@ class ContentScraperWorker(WorkerThread):
 
     def run(self):
         """Run the content scraping process"""
-        stopped = False  # Single flag to track if we stopped
-
         try:
             self.emit_status("初始化中...")
+            result = run_scrape_workflow(
+                db=Database(),
+                scraper=ContentScraper(stop_checker=self.should_stop),
+                log=self.emit_log,
+                progress=self.emit_progress,
+            )
 
-            db = Database()
-            file_store = FileStore()
-            scraper = ContentScraper()
-
-            pending = db.get_pending_articles()
-
-            start_time = datetime.now()
-            self.emit_log(f"开始时间: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
-            self.emit_log(f"待抓取文章: {len(pending)} 篇\n")
-
-            if not pending:
-                self.emit_log("没有待抓取的文章")
+            if result.total == 0 and not result.stopped:
                 self.emit_status("无待处理")
                 self.emit_complete(count=0, success=0, failed=0)
                 return
 
-            scraper.start()
-
-            success_count = 0
-            failed_count = 0
-
-            try:
-                for idx, (article_id, url) in enumerate(pending, 1):
-                    if self.should_stop():
-                        stopped = True
-                        break
-
-                    self.emit_log(f"[{idx}/{len(pending)}] 抓取: {url}")
-                    self.emit_progress(idx, len(pending))
-
-                    article_data = scraper.scrape_article(url)
-
-                    if article_data:
-                        content_markdown = md(article_data.get('content_html', ''), heading_style="ATX")
-
-                        file_path = file_store.save_article(article_data)
-
-                        db.update_article(
-                            url,
-                            title=article_data['title'],
-                            publish_time=article_data['publish_time'],
-                            scraped_at=article_data['scraped_at'],
-                            file_path=file_path,
-                            content_html=article_data.get('content_html', ''),
-                            content_markdown=content_markdown,
-                            status='scraped'
-                        )
-                        self.emit_log(f"  已保存: {file_path}")
-                        success_count += 1
-                    else:
-                        db.update_article(url, status='failed')
-                        self.emit_log(f"  抓取失败")
-                        failed_count += 1
-
-            finally:
-                scraper.stop()
-
-            # If stopped, emit complete immediately and return
-            if stopped:
-                self.emit_log("\n收到停止信号，正在停止...")
+            if result.stopped:
                 self.emit_status("已停止")
                 time.sleep(0.05)
-                self.emit_complete(stopped=True, count=success_count + failed_count, success=success_count, failed=failed_count)
+                self.emit_complete(
+                    stopped=True,
+                    count=result.total,
+                    success=result.success,
+                    failed=result.failed,
+                )
                 return
 
-            # Generate index (only if not stopped)
-            if not self.should_stop():
-                self.emit_log("\n生成文章目录索引...")
-                index_path = file_store.generate_index()
-                self.emit_log(f"索引已生成: {index_path}")
-
-            # Normal completion
-            end_time = datetime.now()
-            elapsed = end_time - start_time
-
-            self.emit_log("\n" + "=" * 60)
-            self.emit_log("抓取完成！")
-            self.emit_log(f"成功: {success_count} 篇")
-            self.emit_log(f"失败: {failed_count} 篇")
-            self.emit_log(f"开始时间: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
-            self.emit_log(f"结束时间: {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
-            self.emit_log(f"总耗时: {elapsed.total_seconds():.1f} 秒")
-
             self.emit_status("完成")
-            self.emit_complete(stopped=False, count=success_count + failed_count, success=success_count, failed=failed_count)
+            self.emit_complete(
+                stopped=False,
+                count=result.total,
+                success=result.success,
+                failed=result.failed,
+            )
 
         except Exception as e:
             self.emit_status("错误")
@@ -385,8 +153,7 @@ class RetryFailedWorker(WorkerThread):
         """Reset failed articles to pending"""
         try:
             self.emit_status("处理中...")
-            db = Database()
-            affected = db.reset_failed()
+            affected = reset_failed_articles(Database())
 
             if affected > 0:
                 self.emit_log(f"已将 {affected} 篇失败文章重置为待抓取状态")
@@ -408,8 +175,7 @@ class GenerateIndexWorker(WorkerThread):
         """Generate article index"""
         try:
             self.emit_status("生成中...")
-            file_store = FileStore()
-            index_path = file_store.generate_index()
+            index_path = generate_article_index()
             self.emit_log(f"索引已生成: {index_path}")
             self.emit_status("完成")
             self.emit_complete(path=index_path)
