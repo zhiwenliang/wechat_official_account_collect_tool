@@ -2,7 +2,9 @@
 Article preview dialog showing raw Markdown or raw HTML content.
 """
 import tkinter as tk
-from tkinter import ttk, scrolledtext
+import webbrowser
+from pathlib import Path
+from tkinter import ttk, scrolledtext, messagebox
 
 from gui.styles import FONT_HELP, FONT_LOG, FONT_TITLE, PAGE_PAD, SECTION_GAP, SECTION_GAP_SMALL
 from storage.file_store import FileStore
@@ -114,6 +116,7 @@ class ArticlePreviewDialog:
 
         footer = ttk.Frame(root)
         footer.grid(row=3, column=0, sticky="e", pady=(SECTION_GAP_SMALL, 0))
+        ttk.Button(footer, text="用浏览器打开", command=self._open_in_browser).pack(side=tk.LEFT, padx=(0, SECTION_GAP_SMALL))
         ttk.Button(footer, text="关闭", command=self.window.destroy).pack(side=tk.RIGHT)
 
     def _load_content(self):
@@ -151,3 +154,19 @@ class ArticlePreviewDialog:
         if status == "scraped" and not (self.article_data.get("content_html") or "").strip():
             return "已抓取(无内容)"
         return status
+
+    def _open_in_browser(self):
+        """Open the saved HTML file or fallback article URL in the browser."""
+        file_path = self.article_data.get("file_path")
+        if file_path:
+            html_path = Path(file_path)
+            if html_path.exists():
+                webbrowser.open(html_path.resolve().as_uri())
+                return
+
+        url = (self.article_data.get("url") or "").strip()
+        if url:
+            webbrowser.open(url)
+            return
+
+        messagebox.showwarning("提示", "没有可用的浏览器打开目标")
