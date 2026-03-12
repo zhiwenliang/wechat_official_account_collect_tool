@@ -4,11 +4,15 @@
 """
 import sys
 import threading
+from utils.escape_listener import EscapeListener
+from utils.runtime_env import configure_runtime_environment
+
+configure_runtime_environment()
+
 from scraper.link_collector import LinkCollector
 from scraper.content_scraper import ContentScraper
 from services.workflows import generate_article_index, reset_failed_articles, run_scrape_workflow
 from storage.database import Database
-from utils.escape_listener import EscapeListener
 
 def scrape_content():
     """抓取文章内容"""

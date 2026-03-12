@@ -81,6 +81,40 @@ python main.py retry
 python main.py index
 ```
 
+## 打包可执行程序
+
+项目提供了统一打包脚本，可在当前平台生成 GUI 和 CLI 可执行程序。
+打包完成后，脚本会自动把 Playwright 的 Chromium 浏览器目录复制到产物运行目录旁边。
+
+### 安装打包依赖
+
+```bash
+pip install pyinstaller
+```
+
+### 打包命令
+
+```bash
+# 同时打包 GUI 和 CLI
+python scripts/package_app.py
+
+# 只打包 GUI
+python scripts/package_app.py --target gui
+
+# 只打包 CLI
+python scripts/package_app.py --target cli
+
+# 打包成单文件
+python scripts/package_app.py --target gui --onefile
+```
+
+生成结果默认输出到 `dist/<platform>/`。
+
+注意：
+- 需要在目标平台上执行打包，不能跨平台直接生成可执行文件
+- 打包前需要先在构建机执行 `playwright install chromium`
+- 打包后的程序会优先使用产物旁边的 `ms-playwright` 浏览器目录
+
 ### 查看数据库状态
 
 ```bash

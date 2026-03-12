@@ -1,7 +1,10 @@
 """
 Main Entry Point for the GUI Application
 """
-import tkinter as tk
+from utils.runtime_env import configure_runtime_environment
+
+configure_runtime_environment()
+
 from gui.app import WeChatScraperGUI
 
 def main():
