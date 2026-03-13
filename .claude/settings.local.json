@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python:*)",
+      "Bash(pip install:*)",
+      "Bash(echo:*)",
+      "Bash(conda activate:*)",
+      "Bash(/Users/humuh/source/gongzhonghaohistory/scraper/calibrator.py:*)",
+      "Bash(/Users/humuh/source/gongzhonghaohistory/scraper/link_collector.py:*)",
+      "Bash(/tmp/scroll_calibration.txt:*)",
+      "Read(//tmp/**)"
+    ]
+  }
+}
