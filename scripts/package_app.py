@@ -5,6 +5,7 @@ Build GUI and/or CLI executables for the current platform with PyInstaller.
 from __future__ import annotations
 
 import argparse
+import os
 import platform
 import shutil
 import subprocess
@@ -88,6 +89,10 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Create a zip archive for each packaged target.",
     )
+    parser.add_argument(
+        "--macos-codesign-identity",
+        help="macOS codesign identity to apply to .app bundles. Use '-' for ad-hoc signing.",
+    )
     return parser.parse_args()
 
 
@@ -157,6 +162,14 @@ def get_default_icon_path() -> Path | None:
     if icon_path and icon_path.exists():
         return icon_path
     return None
+
+
+def get_macos_codesign_identity(args: argparse.Namespace) -> str | None:
+    """Resolve the macOS codesign identity from CLI args or environment."""
+    if args.macos_codesign_identity:
+        return args.macos_codesign_identity
+
+    return os.environ.get("MACOS_CODESIGN_IDENTITY")
 
 
 def resolve_distributable_path(target_key: str, dist_dir: Path) -> Path | None:
@@ -267,6 +280,28 @@ def create_zip_archive(source_path: Path, archive_path: Path) -> None:
     )
 
 
+def sign_macos_app_bundle(app_path: Path, identity: str) -> None:
+    """Codesign a macOS app bundle after all files have been copied into it."""
+    sign_cmd = [
+        "codesign",
+        "--force",
+        "--deep",
+        "--sign",
+        identity,
+    ]
+    if identity != "-":
+        sign_cmd.extend(["--options", "runtime", "--timestamp"])
+    sign_cmd.append(str(app_path))
+
+    print(f"Signing macOS app bundle with identity: {identity}")
+    subprocess.run(sign_cmd, check=True)
+    subprocess.run(
+        ["codesign", "--verify", "--deep", "--strict", str(app_path)],
+        check=True,
+    )
+    print(f"Verified code signature: {app_path}")
+
+
 def archive_target(target_key: str, dist_dir: Path, platform_tag: str) -> Path:
     """Archive the packaged output into a stable zip artifact."""
     target = TARGETS[target_key]
@@ -298,6 +333,7 @@ def build_target(pyinstaller_run, target_key: str, args: argparse.Namespace, pla
     work_dir = PROJECT_ROOT / "build" / platform_tag / target_key
     spec_dir = PROJECT_ROOT / "build" / "specs"
     browser_dir = find_playwright_browser_dir()
+    macos_codesign_identity = get_macos_codesign_identity(args)
 
     pyinstaller_args = [
         "--noconfirm",
@@ -346,7 +382,14 @@ def build_target(pyinstaller_run, target_key: str, args: argparse.Namespace, pla
         print(f"Using app icon: {icon_path}")
     pyinstaller_run(pyinstaller_args)
     copy_playwright_browsers(target_key, dist_dir, browser_dir)
-    verify_packaged_output(target_key, dist_dir)
+    distributable = verify_packaged_output(target_key, dist_dir)
+
+    if (
+        platform.system() == "Darwin"
+        and distributable.suffix == ".app"
+        and macos_codesign_identity
+    ):
+        sign_macos_app_bundle(distributable, macos_codesign_identity)
 
     if args.archive:
         archive_target(target_key, dist_dir, platform_tag)

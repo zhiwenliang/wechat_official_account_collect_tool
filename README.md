@@ -121,6 +121,10 @@ playwright install chromium
 
 # 生成 GUI 分发压缩包
 python scripts/package_app.py --target gui --archive
+
+# macOS 共享给其他人时，可选：使用证书签名 .app
+python scripts/package_app.py --target gui --archive \
+  --macos-codesign-identity "Developer ID Application: Your Name (TEAMID)"
 ```
 
 生成结果默认输出到 `dist/<platform>/`，例如：
@@ -149,6 +153,7 @@ python scripts/package_app.py --target gui --onefile
 - 打包前需要先在构建机执行 `playwright install chromium`
 - 打包后的程序会优先使用产物旁边的 `ms-playwright` 浏览器目录
 - 若未显式传入 `--icon`，打包脚本会默认使用 `assets/icons/wechat-scraper.icns` 或 `assets/icons/wechat-scraper.ico`
+- 若传入 `--macos-codesign-identity`，打包脚本会在复制 Playwright 浏览器后对 `.app` 执行 `codesign`
 - 本地 macOS 打包若用于当前仓库约定的分发目标，应在 Apple Silicon 机器上执行
 
 ### 内部使用注意事项
@@ -161,6 +166,8 @@ python scripts/package_app.py --target gui --onefile
 - 坐标配置会保存到上述目录下的 `config/coordinates.json`
 - 数据库和导出的文章会保存到上述目录下的 `data/`
 - 如果 GUI 应用启动时只在 Dock 或任务栏闪一下就退出，请检查上述运行时目录中的 `wechat-scraper-startup.log`
+- 如果 macOS 提示“已损坏，无法打开”，通常是 Gatekeeper 拦截了未签名或未 notarize 的应用。临时处理可在接收方机器执行：`xattr -dr com.apple.quarantine /path/to/wechat-scraper-gui.app`
+- 如果希望别人下载后直接打开，仍然需要使用 Developer ID 签名并完成 Apple notarization；仅 ad-hoc 签名通常不足以绕过 Gatekeeper
 
 ### 查看数据库状态
 

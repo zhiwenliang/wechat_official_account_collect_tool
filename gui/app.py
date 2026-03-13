@@ -11,12 +11,25 @@ import time
 from pathlib import Path
 from datetime import datetime
 
-from services.calibration_service import get_coordinates_path
+from services.calibration_service import (
+    COPY_LINK_COUNTDOWN_SECONDS,
+    OPEN_TABS_CLICKS,
+    calibrate_article_click_area,
+    calibrate_copy_link_menu,
+    calibrate_more_button,
+    calibrate_scroll_amount,
+    calibrate_tab_management,
+    create_default_coordinates_config,
+    get_coordinates_path,
+    load_coordinates_config,
+    open_calibration_article_tab,
+    set_visible_articles,
+)
 from storage.database import Database
 from storage.file_store import FileStore
 from gui.worker import (
     WorkerSignals, LinkCollectorWorker, ContentScraperWorker,
-    RetryFailedWorker, GenerateIndexWorker, CalibrationWorker, TestWorker
+    RetryFailedWorker, GenerateIndexWorker, TestWorker
 )
 from gui.preview_dialog import ArticlePreviewDialog
 from gui.styles import *
@@ -42,10 +55,11 @@ class WeChatScraperGUI:
         self.worker_timer = None
         self.is_stopping = False  # Track if we're in the middle of stopping
 
-        # Calibration position tracking
-        self.calibration_position = None
-        self.calibration_waiting = False
-        self.calibration_callback = None
+        # Calibration UI state
+        self.calibration_item_widgets = {}
+        self.calibration_active_item = None
+        self.calibration_action_after_id = None
+        self.calibration_cancel_requested = False
         self.checked_article_ids = set()
         self.article_check_anchor_id = None
         self.article_list_refresh_token = 0
@@ -106,6 +120,70 @@ class WeChatScraperGUI:
         # Status bar
         self._create_status_bar()
         self.root.bind("<Configure>", self._schedule_article_layout_refresh, add="+")
+        self.root.bind_all("<MouseWheel>", self._on_global_mousewheel, add="+")
+        self.root.bind_all("<Button-4>", self._on_global_mousewheel, add="+")
+        self.root.bind_all("<Button-5>", self._on_global_mousewheel, add="+")
+
+    def _create_scrollable_tab_container(self, tab_name):
+        """Create a notebook tab with a vertically scrollable content area."""
+        tab_frame = ttk.Frame(self.notebook)
+        self.notebook.add(tab_frame, text=tab_name)
+        tab_frame.columnconfigure(0, weight=1)
+        tab_frame.rowconfigure(0, weight=1)
+
+        canvas = tk.Canvas(tab_frame, highlightthickness=0, borderwidth=0)
+        scrollbar = ttk.Scrollbar(tab_frame, orient=tk.VERTICAL, command=canvas.yview)
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.grid(row=0, column=0, sticky="nsew")
+        scrollbar.grid(row=0, column=1, sticky="ns")
+
+        content_frame = ttk.Frame(canvas)
+        content_frame._scroll_canvas = canvas
+        canvas._scroll_canvas = canvas
+
+        window_id = canvas.create_window((0, 0), window=content_frame, anchor="nw")
+
+        content_frame.bind(
+            "<Configure>",
+            lambda _event, target_canvas=canvas: target_canvas.configure(scrollregion=target_canvas.bbox("all")),
+        )
+        canvas.bind(
+            "<Configure>",
+            lambda event, target_canvas=canvas, target_window=window_id: target_canvas.itemconfigure(target_window, width=event.width),
+        )
+
+        return tab_frame, content_frame
+
+    def _find_scroll_canvas(self, widget):
+        """Find the nearest scrollable tab canvas for a widget."""
+        current = widget
+        while current is not None:
+            canvas = getattr(current, "_scroll_canvas", None)
+            if canvas is not None:
+                return canvas
+            current = getattr(current, "master", None)
+        return None
+
+    def _on_global_mousewheel(self, event):
+        """Scroll the current tab page when the pointer is inside a scrollable tab."""
+        widget = self.root.winfo_containing(event.x_root, event.y_root) or event.widget
+        canvas = self._find_scroll_canvas(widget)
+        if canvas is None:
+            return
+
+        if getattr(event, "num", None) == 4:
+            direction = -1
+        elif getattr(event, "num", None) == 5:
+            direction = 1
+        else:
+            delta = getattr(event, "delta", 0)
+            if delta == 0:
+                return
+            direction = -1 if delta > 0 else 1
+
+        canvas.yview_scroll(direction, "units")
+        return "break"
 
     def _setup_tree_styles(self):
         """Configure treeview styles used by the GUI."""
@@ -193,8 +271,7 @@ class WeChatScraperGUI:
 
     def _create_dashboard_tab(self):
         """Create the dashboard tab"""
-        frame = ttk.Frame(self.notebook)
-        self.notebook.add(frame, text=TAB_DASHBOARD)
+        tab_frame, frame = self._create_scrollable_tab_container(TAB_DASHBOARD)
 
         header = ttk.Frame(frame, padding=PAGE_PAD)
         header.pack(fill=tk.X)
@@ -320,12 +397,11 @@ class WeChatScraperGUI:
         )
         self.last_update_label.pack(anchor=tk.W, padx=PAGE_PAD, pady=(0, SECTION_GAP_SMALL))
 
-        return frame
+        return tab_frame
 
     def _create_collection_tab(self):
         """Create the link collection tab"""
-        frame = ttk.Frame(self.notebook)
-        self.notebook.add(frame, text=TAB_COLLECTION)
+        tab_frame, frame = self._create_scrollable_tab_container(TAB_COLLECTION)
 
         # Control frame
         control_frame = ttk.Frame(frame, padding=PAGE_PAD)
@@ -400,12 +476,11 @@ class WeChatScraperGUI:
         )
         self.collect_log.pack(fill=tk.BOTH, expand=True)
 
-        return frame
+        return tab_frame
 
     def _create_scraping_tab(self):
         """Create the content scraping tab"""
-        frame = ttk.Frame(self.notebook)
-        self.notebook.add(frame, text=TAB_SCRAPING)
+        tab_frame, frame = self._create_scrollable_tab_container(TAB_SCRAPING)
 
         # Control frame
         control_frame = ttk.Frame(frame, padding=PAGE_PAD)
@@ -489,12 +564,11 @@ class WeChatScraperGUI:
         )
         self.scrape_log.pack(fill=tk.BOTH, expand=True)
 
-        return frame
+        return tab_frame
 
     def _create_articles_tab(self):
         """Create the articles management tab"""
-        frame = ttk.Frame(self.notebook)
-        self.notebook.add(frame, text=TAB_ARTICLES)
+        tab_frame, frame = self._create_scrollable_tab_container(TAB_ARTICLES)
 
         # Control frame
         control_frame = ttk.Frame(frame, padding=PAGE_PAD)
@@ -694,96 +768,151 @@ class WeChatScraperGUI:
         self.root.after(0, self._update_article_sort_headings)
         self.root.after(0, self._update_article_selection_actions)
 
-        return frame
+        return tab_frame
 
     def _create_calibration_tab(self):
-        """Create the calibration wizard tab"""
-        frame = ttk.Frame(self.notebook)
-        self.notebook.add(frame, text=TAB_CALIBRATION)
+        """Create the page-based calibration tab."""
+        tab_frame, frame = self._create_scrollable_tab_container(TAB_CALIBRATION)
 
-        # Instructions
-        instructions_frame = ttk.Frame(frame, padding=PAGE_PAD)
-        instructions_frame.pack(fill=tk.X)
+        header = ttk.Frame(frame, padding=PAGE_PAD)
+        header.pack(fill=tk.X)
 
         ttk.Label(
-            instructions_frame,
-            text="坐标校准向导",
+            header,
+            text="坐标校准",
             font=("Helvetica", 16, "bold")
         ).pack(anchor=tk.W)
 
         ttk.Label(
-            instructions_frame,
-            text="按照以下步骤完成坐标校准，确保采集功能正常工作",
+            header,
+            text="按需逐项校准关键坐标，不需要再从头跑完整段向导。",
             font=FONT_HELP,
             foreground="gray"
         ).pack(anchor=tk.W, pady=(5, 0))
 
-        ttk.Separator(instructions_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=PAGE_PAD_SMALL)
+        ttk.Separator(header, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=PAGE_PAD_SMALL)
 
-        action_frame = ttk.Frame(instructions_frame)
+        action_frame = ttk.Frame(header)
         action_frame.pack(anchor=tk.W)
-
-        self.calibrate_button = ttk.Button(
-            action_frame,
-            text="开始校准",
-            command=self._start_calibration
-        )
-        self.calibrate_button.pack(side=tk.LEFT)
 
         self.test_button = ttk.Button(
             action_frame,
             text="测试坐标",
             command=self._start_test
         )
-        self.test_button.pack(side=tk.LEFT, padx=(10, 0))
+        self.test_button.pack(side=tk.LEFT)
 
-        # Live calibration progress (shown on the page)
-        progress_frame = ttk.Frame(frame, padding=(PAGE_PAD, 0, PAGE_PAD, PAGE_PAD_SMALL))
-        progress_frame.pack(fill=tk.X)
+        ttk.Button(
+            action_frame,
+            text="刷新状态",
+            command=self._refresh_calibration_items
+        ).pack(side=tk.LEFT, padx=(10, 0))
 
-        ttk.Label(progress_frame, text="当前校准进度:", font=("Helvetica", 10, "bold")).pack(anchor=tk.W)
-
-        self.calibration_progress = ttk.Progressbar(
-            progress_frame,
-            mode="determinate",
-            maximum=100
+        self.calibration_page_status_label = ttk.Label(
+            header,
+            text="正在读取校准状态...",
+            font=FONT_HELP_LARGE,
+            foreground=COLOR_PRIMARY_DARK,
         )
-        self.calibration_progress.pack(fill=tk.X, pady=5)
+        self.calibration_page_status_label.pack(anchor=tk.W, pady=(SECTION_GAP, 0))
 
-        self.calibration_progress_label = ttk.Label(
-            progress_frame,
-            text="未开始",
-            font=("Helvetica", 9),
-            foreground="gray"
+        operation_frame = ttk.LabelFrame(frame, text="当前操作", padding=CONTROL_PAD)
+        operation_frame.pack(fill=tk.X, padx=PAGE_PAD, pady=(0, SECTION_GAP))
+
+        self.calibration_action_label = ttk.Label(
+            operation_frame,
+            text="当前没有进行中的校准项。",
+            font=FONT_HELP,
+            foreground="gray",
+            justify=tk.LEFT,
         )
-        self.calibration_progress_label.pack(anchor=tk.W)
+        self.calibration_action_label.pack(anchor=tk.W)
 
-        # Calibration info
+        self.calibration_cancel_button = ttk.Button(
+            operation_frame,
+            text="取消当前校准",
+            command=self._cancel_active_calibration_action,
+            state=tk.DISABLED,
+        )
+        self.calibration_cancel_button.pack(anchor=tk.W, pady=(SECTION_GAP_SMALL, 0))
+
+        items_frame = ttk.Frame(frame, padding=(PAGE_PAD, 0, PAGE_PAD, 0))
+        items_frame.pack(fill=tk.BOTH, expand=True)
+        items_frame.columnconfigure(0, weight=1)
+
+        article_group = ttk.LabelFrame(items_frame, text="文章列表", padding=CONTROL_PAD)
+        article_group.pack(fill=tk.X, pady=(0, SECTION_GAP))
+        self._create_calibration_item_row(
+            article_group,
+            item_id="article_click_area",
+            title="文章点击位置",
+            description="通过两次文章顶部和一次文章底部位置，自动计算点击点和行高。",
+            command=self._start_article_click_area_calibration,
+        )
+        self._create_calibration_item_row(
+            article_group,
+            item_id="scroll_amount",
+            title="滚动单位",
+            description="记录滚动前后同一参考点，自动计算每次滚动的单位值。",
+            command=self._start_scroll_amount_calibration,
+        )
+        self._create_calibration_item_row(
+            article_group,
+            item_id="visible_articles",
+            title="可见文章数",
+            description="设置当前窗口中同时能看到的文章数量，用于处理最后一屏。",
+            command=self._start_visible_articles_calibration,
+            action_text="设置",
+        )
+
+        browser_group = ttk.LabelFrame(items_frame, text="浏览器菜单", padding=CONTROL_PAD)
+        browser_group.pack(fill=tk.X, pady=(0, SECTION_GAP))
+        self._create_calibration_item_row(
+            browser_group,
+            item_id="more_button",
+            title="更多按钮",
+            description="记录微信内置浏览器右上角“更多”按钮的位置。",
+            command=self._start_more_button_calibration,
+        )
+        self._create_calibration_item_row(
+            browser_group,
+            item_id="copy_link_menu",
+            title="复制链接菜单",
+            description="启动倒计时后，在微信里打开“更多”菜单并把鼠标停在“复制链接”上。",
+            command=self._start_copy_link_menu_calibration,
+        )
+
+        tabs_group = ttk.LabelFrame(items_frame, text="标签管理", padding=CONTROL_PAD)
+        tabs_group.pack(fill=tk.X)
+        self._create_calibration_item_row(
+            tabs_group,
+            item_id="tab_management",
+            title="标签管理",
+            description="自动打开 20 个标签后，依次记录第一个标签和关闭按钮位置。",
+            command=self._start_tab_management_calibration,
+        )
+
         info_frame = ttk.LabelFrame(frame, text="校准说明", padding=CONTROL_PAD)
-        info_frame.pack(fill=tk.BOTH, expand=True, padx=PAGE_PAD, pady=(SECTION_GAP, PAGE_PAD_SMALL))
+        info_frame.pack(fill=tk.X, padx=PAGE_PAD, pady=(SECTION_GAP, PAGE_PAD_SMALL))
 
         info_text = """
-坐标校准是采集功能正常运行的关键步骤。校准过程需要：
+请根据需要点击某一项开始校准，不需要再一次性完成全部步骤。
 
-1. 测量文章行高：定位两篇相邻文章的顶部位置
-2. 定位文章底部：确定第一篇文章的底部位置
-3. 测试滚动单位：确定每次滚动移动的像素距离
-4. 定位更多按钮：记录微信浏览器的"更多"按钮位置
-5. 定位复制链接菜单：确认(Enter)后会倒计时10秒，期间打开更多菜单并将鼠标停在"复制链接"上
-6. 定位标签管理：程序会自动点击文章20次打开标签，再记录第一个标签和关闭按钮位置
-
-操作技巧（避免记录到弹窗按钮坐标）：
-- 把鼠标移动到目标位置后，尽量用键盘 Enter 确认
-- 如需先在微信里点击（如打开“更多”菜单），把鼠标停在目标点后，用 Alt+Tab/Cmd+Tab 切回弹窗，再按 Enter
+操作说明：
+- 每个项目只会弹出当前这一步需要的小提示框
+- 建议把鼠标移动到目标位置后，用键盘 Enter 确认弹窗
+- 需要自动动作的项目（复制链接菜单、标签管理）会在页面里显示当前进度
 
 注意事项：
 - 校准后请勿移动微信窗口的位置和大小
-- 如窗口位置改变，需要重新校准
-- 建议在两个窗口都不重叠的情况下进行校准
+- 如窗口位置改变，需要重新校准相关项目
+- 建议保持公众号窗口和微信内置浏览器窗口都可见
 """
         ttk.Label(info_frame, text=info_text, font=FONT_HELP_LARGE, justify=tk.LEFT).pack(anchor=tk.W)
 
-        return frame
+        self.root.after(0, self._refresh_calibration_items)
+
+        return tab_frame
 
     def _create_status_bar(self):
         """Create the status bar"""
@@ -803,6 +932,7 @@ class WeChatScraperGUI:
     def _go_to_calibration_tab(self):
         """Open the calibration tab from the dashboard."""
         self.notebook.select(self.calibration_tab)
+        self._refresh_calibration_items()
 
     def _go_to_collection_tab(self):
         """Open the collection tab from the dashboard."""
@@ -811,6 +941,535 @@ class WeChatScraperGUI:
     def _go_to_scraping_tab(self):
         """Open the scraping tab from the dashboard."""
         self.notebook.select(self.scraping_tab)
+
+    def _create_calibration_item_row(self, parent, *, item_id, title, description, command, action_text="校准"):
+        """Create one row in the page-based calibration list."""
+        row = ttk.Frame(parent)
+        row.pack(fill=tk.X, pady=(0, SECTION_GAP))
+
+        content = ttk.Frame(row)
+        content.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        ttk.Label(content, text=title, font=FONT_TITLE).pack(anchor=tk.W)
+        ttk.Label(
+            content,
+            text=description,
+            font=FONT_HELP,
+            foreground="gray",
+            justify=tk.LEFT,
+            wraplength=620,
+        ).pack(anchor=tk.W, pady=(SECTION_GAP_SMALL, 0))
+
+        meta = ttk.Frame(content)
+        meta.pack(fill=tk.X, pady=(SECTION_GAP_SMALL, 0))
+
+        status_label = ttk.Label(meta, text="未校准", font=FONT_HELP, foreground=COLOR_WARNING)
+        status_label.pack(side=tk.LEFT)
+
+        value_label = ttk.Label(meta, text="", font=FONT_HELP, foreground="gray")
+        value_label.pack(side=tk.LEFT, padx=(SECTION_GAP, 0))
+
+        action_button = ttk.Button(row, text=action_text, command=command)
+        action_button.pack(side=tk.RIGHT)
+
+        self.calibration_item_widgets[item_id] = {
+            "status_label": status_label,
+            "value_label": value_label,
+            "action_button": action_button,
+            "default_action_text": action_text,
+        }
+
+    def _is_calibration_point_configured(self, point):
+        """Return whether a stored point looks calibrated instead of defaulted."""
+        if not isinstance(point, dict):
+            return False
+        return bool(point.get("x") or point.get("y"))
+
+    def _format_calibration_point(self, point):
+        """Render a stored point for the calibration page."""
+        if not self._is_calibration_point_configured(point):
+            return "未记录"
+        return f"({point.get('x')}, {point.get('y')})"
+
+    def _set_calibration_action_text(self, text, color="gray"):
+        """Update the on-page calibration action message."""
+        if hasattr(self, "calibration_action_label"):
+            self.calibration_action_label.config(text=text, foreground=color)
+        self.worker_status_label.config(text=text)
+
+    def _clear_calibration_after(self):
+        """Cancel any scheduled page-calibration callback."""
+        if self.calibration_action_after_id is not None:
+            try:
+                self.root.after_cancel(self.calibration_action_after_id)
+            except Exception:
+                pass
+            self.calibration_action_after_id = None
+
+    def _schedule_calibration_after(self, delay_ms, callback):
+        """Schedule the next asynchronous calibration step."""
+        self._clear_calibration_after()
+        self.calibration_action_after_id = self.root.after(delay_ms, callback)
+
+    def _set_calibration_buttons_state(self, disabled):
+        """Enable or disable page calibration actions."""
+        worker_busy = bool(self.current_worker and self.current_worker.is_alive())
+        state = tk.DISABLED if disabled or worker_busy else tk.NORMAL
+        for widgets in self.calibration_item_widgets.values():
+            widgets["action_button"].config(state=state)
+        if hasattr(self, "test_button"):
+            self.test_button.config(state=tk.DISABLED if disabled or worker_busy else tk.NORMAL)
+        if hasattr(self, "calibration_cancel_button"):
+            self.calibration_cancel_button.config(state=tk.NORMAL if disabled else tk.DISABLED)
+
+    def _refresh_calibration_items(self):
+        """Refresh calibration item values and statuses from config."""
+        config_exists = get_coordinates_path().exists()
+        config = load_coordinates_config(create_if_missing=False)
+        defaults = create_default_coordinates_config()
+
+        article_list = config["windows"]["article_list"]
+        browser = config["windows"]["browser"]
+        default_article = defaults["windows"]["article_list"]
+
+        article_click = article_list.get("article_click_area", {})
+        row_height = int(article_list.get("row_height") or 0)
+        scroll_amount = int(article_list.get("scroll_amount") or default_article["scroll_amount"])
+        visible_articles = int(article_list.get("visible_articles") or default_article["visible_articles"])
+        more_button = browser.get("more_button", {})
+        copy_link = browser.get("copy_link_menu", {})
+        first_tab = browser.get("first_tab", {})
+        close_button = browser.get("close_tab_button", {})
+
+        article_ready = config_exists and self._is_calibration_point_configured(article_click) and row_height > 0
+        scroll_ready = article_ready and scroll_amount > 0 and scroll_amount != default_article["scroll_amount"]
+        scroll_default = article_ready and scroll_amount == default_article["scroll_amount"]
+        visible_default = visible_articles == default_article["visible_articles"]
+        more_ready = config_exists and self._is_calibration_point_configured(more_button)
+        copy_ready = config_exists and self._is_calibration_point_configured(copy_link)
+        tab_ready = config_exists and self._is_calibration_point_configured(first_tab) and self._is_calibration_point_configured(close_button)
+
+        self._update_calibration_row(
+            "article_click_area",
+            status_text="已校准" if article_ready else "未校准",
+            status_color=COLOR_SUCCESS if article_ready else COLOR_WARNING,
+            value_text=f"点击点: {self._format_calibration_point(article_click)}  |  行高: {row_height if row_height > 0 else '未记录'}",
+            recalibrate=article_ready,
+        )
+        if scroll_ready:
+            scroll_status_text = "已校准"
+            scroll_status_color = COLOR_SUCCESS
+        elif scroll_default:
+            scroll_status_text = "默认值"
+            scroll_status_color = COLOR_INFO
+        else:
+            scroll_status_text = "未校准"
+            scroll_status_color = COLOR_WARNING
+        self._update_calibration_row(
+            "scroll_amount",
+            status_text=scroll_status_text,
+            status_color=scroll_status_color,
+            value_text=f"当前值: {scroll_amount}",
+            recalibrate=article_ready,
+        )
+        self._update_calibration_row(
+            "visible_articles",
+            status_text="默认值" if visible_default else "已设置",
+            status_color=COLOR_INFO if visible_default else COLOR_SUCCESS,
+            value_text=f"当前值: {visible_articles}",
+            recalibrate=not visible_default,
+        )
+        self._update_calibration_row(
+            "more_button",
+            status_text="已校准" if more_ready else "未校准",
+            status_color=COLOR_SUCCESS if more_ready else COLOR_WARNING,
+            value_text=f"当前位置: {self._format_calibration_point(more_button)}",
+            recalibrate=more_ready,
+        )
+        self._update_calibration_row(
+            "copy_link_menu",
+            status_text="已校准" if copy_ready else "未校准",
+            status_color=COLOR_SUCCESS if copy_ready else COLOR_WARNING,
+            value_text=f"当前位置: {self._format_calibration_point(copy_link)}",
+            recalibrate=copy_ready,
+        )
+        self._update_calibration_row(
+            "tab_management",
+            status_text="已校准" if tab_ready else "未校准",
+            status_color=COLOR_SUCCESS if tab_ready else COLOR_WARNING,
+            value_text=(
+                f"第一个标签: {self._format_calibration_point(first_tab)}  |  "
+                f"关闭按钮: {self._format_calibration_point(close_button)}"
+            ),
+            recalibrate=tab_ready,
+        )
+
+        visible_ready = config_exists or not visible_default
+        ready_count = sum([article_ready, scroll_ready or scroll_default, visible_ready, more_ready, copy_ready, tab_ready])
+        if hasattr(self, "calibration_page_status_label"):
+            self.calibration_page_status_label.config(
+                text=f"当前共有 6 项可维护，已就绪 {ready_count} 项，可按需重校准任一项目。",
+                foreground=COLOR_PRIMARY_DARK,
+            )
+
+        self._set_calibration_buttons_state(bool(self.calibration_active_item))
+
+    def _update_calibration_row(self, item_id, *, status_text, status_color, value_text, recalibrate):
+        """Update one calibration row's visible state."""
+        widgets = self.calibration_item_widgets.get(item_id)
+        if not widgets:
+            return
+        widgets["status_label"].config(text=status_text, foreground=status_color)
+        widgets["value_label"].config(text=value_text)
+        default_text = widgets["default_action_text"]
+        if default_text == "设置":
+            action_text = "重新设置" if recalibrate else "设置"
+        else:
+            action_text = "重校准" if recalibrate else "校准"
+        widgets["action_button"].config(text=action_text)
+
+    def _begin_calibration_action(self, item_id, title):
+        """Start one page-level calibration action."""
+        if self.current_worker and self.current_worker.is_alive():
+            messagebox.showinfo("提示", "已有任务正在运行，请先等待当前任务完成")
+            return False
+        if self.calibration_active_item:
+            messagebox.showinfo("提示", "已有进行中的校准项，请先完成或取消当前校准")
+            return False
+
+        self.calibration_active_item = item_id
+        self.calibration_cancel_requested = False
+        self._set_calibration_buttons_state(True)
+        self._set_calibration_action_text(f"当前项目：{title}", COLOR_PRIMARY_DARK)
+        return True
+
+    def _finish_calibration_action(self, *, success_message=None, cancelled=False, error_message=None):
+        """Finish the current page-level calibration action."""
+        self._clear_calibration_after()
+        self.calibration_active_item = None
+        self.calibration_cancel_requested = False
+
+        if error_message:
+            self._set_calibration_action_text(f"校准失败：{error_message}", COLOR_ERROR)
+            messagebox.showerror("校准失败", error_message, parent=self.root)
+        elif cancelled:
+            self._set_calibration_action_text("当前校准已取消。", COLOR_WARNING)
+        elif success_message:
+            self._set_calibration_action_text(success_message, COLOR_SUCCESS)
+        else:
+            self._set_calibration_action_text("当前没有进行中的校准项。", "gray")
+
+        self._refresh_calibration_items()
+        self._update_statistics()
+
+    def _cancel_active_calibration_action(self):
+        """Cancel the active page-based calibration flow."""
+        if not self.calibration_active_item:
+            return
+        self.calibration_cancel_requested = True
+        self._finish_calibration_action(cancelled=True)
+
+    def _prompt_calibration_position(self, title, prompt):
+        """Ask the user to confirm and then capture the current mouse position."""
+        import pyautogui
+
+        confirmed = messagebox.askokcancel(
+            title,
+            f"{prompt}\n\n确认后将记录当前鼠标位置（建议按 Enter 确认）",
+            parent=self.root,
+        )
+        if not confirmed or self.calibration_cancel_requested:
+            return None
+        return pyautogui.position()
+
+    def _start_article_click_area_calibration(self):
+        """Calibrate article click area and row height."""
+        if not self._begin_calibration_action("article_click_area", "文章点击位置"):
+            return
+
+        try:
+            first_top = self._prompt_calibration_position(
+                "文章点击位置",
+                "步骤 1/3：请将鼠标移动到【任意一篇文章的顶部】。",
+            )
+            if first_top is None:
+                self._finish_calibration_action(cancelled=True)
+                return
+
+            second_top = self._prompt_calibration_position(
+                "文章点击位置",
+                "步骤 2/3：请将鼠标移动到【下一篇文章的顶部】。",
+            )
+            if second_top is None:
+                self._finish_calibration_action(cancelled=True)
+                return
+
+            first_bottom = self._prompt_calibration_position(
+                "文章点击位置",
+                "步骤 3/3：请将鼠标移动到【第一篇文章的底部】。",
+            )
+            if first_bottom is None:
+                self._finish_calibration_action(cancelled=True)
+                return
+
+            result = calibrate_article_click_area(
+                first_top=first_top,
+                second_top=second_top,
+                first_bottom=first_bottom,
+            )
+            click_area = result["click_area"]
+            self._finish_calibration_action(
+                success_message=f"文章点击位置已保存：({click_area['x']}, {click_area['y']}), 行高 {result['row_height']} 像素。",
+            )
+        except Exception as exc:
+            self._finish_calibration_action(error_message=str(exc))
+
+    def _start_scroll_amount_calibration(self):
+        """Calibrate scroll amount from two reference points."""
+        if not self._begin_calibration_action("scroll_amount", "滚动单位"):
+            return
+
+        try:
+            config = load_coordinates_config(create_if_missing=False)
+            row_height = int(config["windows"]["article_list"].get("row_height") or 0)
+            if row_height <= 0:
+                raise ValueError("请先完成“文章点击位置”校准，再计算滚动单位。")
+
+            before_scroll = self._prompt_calibration_position(
+                "滚动单位",
+                "步骤 1/2：请将鼠标移动到文章列表中的某个参考点，确认后系统会自动滚动 1 单位。",
+            )
+            if before_scroll is None:
+                self._finish_calibration_action(cancelled=True)
+                return
+
+            import pyautogui
+
+            click_area = config["windows"]["article_list"]["article_click_area"]
+            pyautogui.moveTo(click_area["x"], click_area["y"], 0.2)
+            pyautogui.scroll(-1)
+            self._set_calibration_action_text("滚动单位：已自动滚动 1 单位，请准备记录滚动后的同一参考点。", COLOR_PRIMARY_DARK)
+
+            def capture_after_scroll():
+                if self.calibration_cancel_requested:
+                    self._finish_calibration_action(cancelled=True)
+                    return
+
+                try:
+                    after_scroll = self._prompt_calibration_position(
+                        "滚动单位",
+                        "步骤 2/2：请将鼠标移动到【滚动后的同一参考点】。",
+                    )
+                    if after_scroll is None:
+                        self._finish_calibration_action(cancelled=True)
+                        return
+
+                    result = calibrate_scroll_amount(
+                        before_scroll=before_scroll,
+                        after_scroll=after_scroll,
+                    )
+                    self._finish_calibration_action(
+                        success_message=f"滚动单位已保存：{result['scroll_amount']}（参考像素差 {result['pixels_per_unit']}）。",
+                    )
+                except Exception as exc:
+                    self._finish_calibration_action(error_message=str(exc))
+
+            self._schedule_calibration_after(1000, capture_after_scroll)
+        except Exception as exc:
+            self._finish_calibration_action(error_message=str(exc))
+
+    def _start_visible_articles_calibration(self):
+        """Set the visible article count."""
+        if not self._begin_calibration_action("visible_articles", "可见文章数"):
+            return
+
+        try:
+            config = load_coordinates_config(create_if_missing=False)
+            default_value = int(config["windows"]["article_list"].get("visible_articles") or 5)
+            visible_count = simpledialog.askinteger(
+                "可见文章数",
+                "请输入当前窗口中同时可见的文章数量：",
+                initialvalue=default_value,
+                minvalue=1,
+                parent=self.root,
+            )
+            if visible_count is None:
+                self._finish_calibration_action(cancelled=True)
+                return
+
+            result = set_visible_articles(visible_count=visible_count)
+            self._finish_calibration_action(
+                success_message=f"可见文章数已保存：{result['visible_count']}。",
+            )
+        except Exception as exc:
+            self._finish_calibration_action(error_message=str(exc))
+
+    def _start_more_button_calibration(self):
+        """Capture the browser more-button position."""
+        if not self._begin_calibration_action("more_button", "更多按钮"):
+            return
+
+        try:
+            position = self._prompt_calibration_position(
+                "更多按钮",
+                "请将鼠标移动到微信内置浏览器右上角【更多】按钮。",
+            )
+            if position is None:
+                self._finish_calibration_action(cancelled=True)
+                return
+
+            result = calibrate_more_button(position=position)
+            saved = result["position"]
+            self._finish_calibration_action(
+                success_message=f"更多按钮已保存：({saved['x']}, {saved['y']})。",
+            )
+        except Exception as exc:
+            self._finish_calibration_action(error_message=str(exc))
+
+    def _start_copy_link_menu_calibration(self):
+        """Run the countdown flow for the copy-link menu item."""
+        if not self._begin_calibration_action("copy_link_menu", "复制链接菜单"):
+            return
+
+        confirmed = messagebox.askokcancel(
+            "复制链接菜单",
+            "确认后将开始倒计时。\n\n请在倒计时内完成：\n"
+            "1. 点击右上角【更多】按钮打开菜单\n"
+            "2. 将鼠标移动到【复制链接】菜单项上并保持不动",
+            parent=self.root,
+        )
+        if not confirmed:
+            self._finish_calibration_action(cancelled=True)
+            return
+
+        def countdown(seconds_left):
+            if self.calibration_cancel_requested:
+                self._finish_calibration_action(cancelled=True)
+                return
+
+            if seconds_left > 0:
+                self._set_calibration_action_text(
+                    f"复制链接菜单：倒计时 {seconds_left} 秒，请在微信中打开菜单并将鼠标停在目标项上。",
+                    COLOR_PRIMARY_DARK,
+                )
+                self._schedule_calibration_after(1000, lambda: countdown(seconds_left - 1))
+                return
+
+            try:
+                import pyautogui
+
+                result = calibrate_copy_link_menu(position=pyautogui.position())
+                saved = result["position"]
+                self._finish_calibration_action(
+                    success_message=f"复制链接菜单已保存：({saved['x']}, {saved['y']})。",
+                )
+            except Exception as exc:
+                self._finish_calibration_action(error_message=str(exc))
+
+        countdown(COPY_LINK_COUNTDOWN_SECONDS)
+
+    def _start_tab_management_calibration(self):
+        """Auto-open tabs, then capture the tab-management coordinates."""
+        if not self._begin_calibration_action("tab_management", "标签管理"):
+            return
+
+        config = load_coordinates_config(create_if_missing=False)
+        click_area = config["windows"]["article_list"].get("article_click_area") or {}
+        if not self._is_calibration_point_configured(click_area):
+            self._finish_calibration_action(error_message="请先完成“文章点击位置”校准，再进行标签管理校准。")
+            return
+
+        confirmed = messagebox.askokcancel(
+            "标签管理",
+            "确认后，程序会自动点击文章 20 次以打开标签。\n\n"
+            "请确保微信窗口已就绪，且不要移动鼠标或窗口。\n"
+            "如需中止，可点击页面上的“取消当前校准”。",
+            parent=self.root,
+        )
+        if not confirmed:
+            self._finish_calibration_action(cancelled=True)
+            return
+
+        import pyautogui
+
+        def open_next_tab(index):
+            if self.calibration_cancel_requested:
+                self._finish_calibration_action(cancelled=True)
+                return
+
+            if index >= OPEN_TABS_CLICKS:
+                try:
+                    first_tab = self._prompt_calibration_position(
+                        "标签管理",
+                        "步骤 1/2：请将鼠标移动到【第一个标签】上。",
+                    )
+                    if first_tab is None:
+                        self._finish_calibration_action(cancelled=True)
+                        return
+
+                    close_button = self._prompt_calibration_position(
+                        "标签管理",
+                        "步骤 2/2：请将鼠标移动到【标签关闭按钮】上。",
+                    )
+                    if close_button is None:
+                        self._finish_calibration_action(cancelled=True)
+                        return
+
+                    result = calibrate_tab_management(
+                        first_tab=first_tab,
+                        close_button=close_button,
+                    )
+                    saved_first = result["first_tab"]
+                    saved_close = result["close_button"]
+                    self._finish_calibration_action(
+                        success_message=(
+                            "标签管理已保存："
+                            f"第一个标签 ({saved_first['x']}, {saved_first['y']}), "
+                            f"关闭按钮 ({saved_close['x']}, {saved_close['y']})。"
+                        ),
+                    )
+                except Exception as exc:
+                    self._finish_calibration_action(error_message=str(exc))
+                return
+
+            try:
+                self._set_calibration_action_text(
+                    f"标签管理：正在自动打开标签 {index + 1}/{OPEN_TABS_CLICKS}...",
+                    COLOR_PRIMARY_DARK,
+                )
+                open_calibration_article_tab(click=pyautogui.click)
+                self._schedule_calibration_after(2000, lambda: open_next_tab(index + 1))
+            except Exception as exc:
+                self._finish_calibration_action(error_message=str(exc))
+
+        open_next_tab(0)
+
+    def _get_calibration_overall_state(self):
+        """Return overall calibration readiness for dashboard/status display."""
+        if not get_coordinates_path().exists():
+            return "none"
+
+        config = load_coordinates_config(create_if_missing=False)
+        defaults = create_default_coordinates_config()
+        article_list = config["windows"]["article_list"]
+        browser = config["windows"]["browser"]
+
+        article_ready = self._is_calibration_point_configured(article_list.get("article_click_area")) and int(article_list.get("row_height") or 0) > 0
+        scroll_amount = int(article_list.get("scroll_amount") or 0)
+        scroll_ready = article_ready and scroll_amount > 0
+        visible_ready = int(article_list.get("visible_articles") or 0) > 0
+        more_ready = self._is_calibration_point_configured(browser.get("more_button"))
+        copy_ready = self._is_calibration_point_configured(browser.get("copy_link_menu"))
+        tab_ready = self._is_calibration_point_configured(browser.get("first_tab")) and self._is_calibration_point_configured(browser.get("close_tab_button"))
+
+        ready_flags = [article_ready, scroll_ready, visible_ready, more_ready, copy_ready, tab_ready]
+        if all(ready_flags):
+            return "complete"
+        if any(ready_flags):
+            return "partial"
+        if article_list.get("scroll_amount") == defaults["windows"]["article_list"]["scroll_amount"] and article_list.get("visible_articles") == defaults["windows"]["article_list"]["visible_articles"]:
+            return "none"
+        return "partial"
 
     def _get_dashboard_status_color(self, status, is_empty_content=False):
         """Return a dashboard-friendly color for article status."""
@@ -907,15 +1566,13 @@ class WeChatScraperGUI:
 
     def _refresh_dashboard(self, stats):
         """Refresh dashboard-specific summary content."""
-        is_calibrated = get_coordinates_path().exists()
-        self._refresh_dashboard_todos(stats, is_calibrated)
+        self._refresh_dashboard_todos(stats, self._get_calibration_overall_state() == "complete")
         self._refresh_dashboard_recent_articles()
 
     def _update_statistics(self):
         """Update statistics on dashboard"""
         stats = self.db.get_statistics()
-        config_path = get_coordinates_path()
-        is_calibrated = config_path.exists()
+        calibration_state = self._get_calibration_overall_state()
 
         for key, label in self.stats_labels.items():
             label.config(text=str(stats[key]))
@@ -927,10 +1584,15 @@ class WeChatScraperGUI:
         self._refresh_dashboard(stats)
 
         # Update calibration status
-        if is_calibrated:
+        if calibration_state == "complete":
             self.calibration_status_label.config(
                 text="校准状态: 已校准",
                 foreground=COLOR_SUCCESS
+            )
+        elif calibration_state == "partial":
+            self.calibration_status_label.config(
+                text="校准状态: 部分校准",
+                foreground=COLOR_INFO
             )
         else:
             self.calibration_status_label.config(
@@ -949,6 +1611,9 @@ class WeChatScraperGUI:
         # Refresh article list if visible
         if self.notebook.select() == str(self.articles_tab):
             self._refresh_article_list()
+
+        if self.calibration_item_widgets:
+            self._refresh_calibration_items()
 
     def _update_scrape_result_labels(self, success=None, failed=None):
         """Update the per-run scrape result labels."""
@@ -1524,6 +2189,10 @@ class WeChatScraperGUI:
 
     def _start_collection(self):
         """Start link collection"""
+        if self.calibration_active_item:
+            messagebox.showinfo("提示", "当前有进行中的校准项，请先完成或取消后再开始采集")
+            return
+
         # Check calibration
         if not get_coordinates_path().exists():
             messagebox.showwarning(
@@ -1558,6 +2227,10 @@ class WeChatScraperGUI:
     def _start_test(self):
         """Start calibration test"""
         self.notebook.select(self.calibration_tab)
+
+        if self.calibration_active_item:
+            messagebox.showinfo("提示", "当前有进行中的校准项，请先完成或取消后再测试")
+            return
 
         # Check calibration
         if not get_coordinates_path().exists():
@@ -1594,6 +2267,10 @@ class WeChatScraperGUI:
 
     def _start_scraping(self, pending_articles=None, intro_message=None):
         """Start content scraping"""
+        if self.calibration_active_item:
+            messagebox.showinfo("提示", "当前有进行中的校准项，请先完成或取消后再开始抓取")
+            return
+
         if self.current_worker and self.current_worker.is_alive():
             messagebox.showinfo("提示", "已有任务正在运行")
             return
@@ -1677,6 +2354,9 @@ class WeChatScraperGUI:
 
     def _handle_escape_stop(self, event=None):
         """Handle Esc key as a stop signal for active tasks."""
+        if self.calibration_active_item:
+            self._cancel_active_calibration_action()
+            return
         if not self.current_worker or not self.current_worker.is_alive() or self.is_stopping:
             return
         self._stop_worker()
@@ -1687,7 +2367,7 @@ class WeChatScraperGUI:
         self.collect_stop_button.config(state=tk.DISABLED)
         self.scrape_button.config(state=tk.NORMAL)
         self.scrape_stop_button.config(state=tk.DISABLED)
-        self.test_button.config(state=tk.NORMAL)
+        self._set_calibration_buttons_state(bool(self.calibration_active_item))
 
     def _check_worker_signals(self):
         """Check for signals from worker"""
@@ -1864,141 +2544,9 @@ class WeChatScraperGUI:
         self._check_worker_signals()
 
     def _open_calibration(self):
-        """Navigate to calibration tab (does not start calibration)."""
+        """Navigate to the calibration tab and refresh the page state."""
         self.notebook.select(self.calibration_tab)
-
-    def _start_calibration(self):
-        """Start calibration wizard from the calibration tab."""
-        self.notebook.select(self.calibration_tab)
-
-        if self.current_worker and self.current_worker.is_alive():
-            messagebox.showinfo("提示", "已有任务正在运行，请先等待当前任务完成")
-            return
-
-        if messagebox.askyesno("确认", "开始坐标校准？\n\n请确保微信窗口已准备好。"):
-            # Reset on-page progress UI
-            if hasattr(self, "calibration_progress"):
-                self.calibration_progress["value"] = 0
-            if hasattr(self, "calibration_progress_label"):
-                self.calibration_progress_label.config(text="准备开始...", foreground="gray")
-            self._run_calibration_wizard()
-
-    def _run_calibration_wizard(self):
-        """Run the calibration wizard"""
-        import pyautogui
-
-        # Reset state
-        self.calibration_waiting = True
-        self.calibration_position = None
-
-        # Create worker
-        def step_callback(prompt):
-            """Callback for calibration steps"""
-            # Wait for user to click
-            self.calibration_waiting = True
-            self.calibration_position = None
-
-            def ask():
-                result = messagebox.askokcancel(
-                    "坐标校准",
-                    f"{prompt}\n\n确认后将记录当前鼠标位置（建议按 Enter 确认）"
-                )
-                if result:
-                    return pyautogui.position()
-                return None
-
-            try:
-                return self._call_on_ui_thread(ask)
-            finally:
-                self.calibration_waiting = False
-
-        def integer_callback(prompt, default):
-            return self._call_on_ui_thread(
-                lambda: simpledialog.askinteger(
-                    "坐标校准",
-                    prompt,
-                    initialvalue=default,
-                    minvalue=1,
-                    parent=self.root,
-                )
-            )
-
-        worker = CalibrationWorker(step_callback, integer_callback)
-        worker.start()
-
-        # Poll worker signals so we can show a completion dialog (calibration has its own flow)
-        self.worker_status_label.config(text="校准中...")
-        max_signals_per_check = 50
-
-        def poll_signals():
-            signals_processed = 0
-            while signals_processed < max_signals_per_check:
-                signal = worker.signals.get(timeout=0.001)
-                if not signal:
-                    break
-
-                signals_processed += 1
-                signal_type, data = signal
-
-                if signal_type == "status":
-                    self.worker_status_label.config(text=data.get("status", ""))
-                elif signal_type == "progress":
-                    # Show progress in status bar (no dedicated calibration log UI)
-                    step = data.get("current", 0)
-                    total = data.get("total", 0)
-                    desc = data.get("message", "")
-                    progress_text = PROGRESS_CALIBRATING.format(step=step, total=total, description=desc)
-                    self.worker_status_label.config(text=progress_text)
-
-                    # Also show on calibration tab
-                    if hasattr(self, "calibration_progress") and total:
-                        self.calibration_progress["value"] = (step / total) * 100
-                    if hasattr(self, "calibration_progress_label"):
-                        self.calibration_progress_label.config(text=progress_text, foreground="gray")
-                elif signal_type == "error":
-                    self.calibration_waiting = False
-                    self.worker_status_label.config(text=STATUS_ERROR)
-                    self._update_statistics()
-                    if hasattr(self, "calibration_progress_label"):
-                        self.calibration_progress_label.config(text="校准失败", foreground=COLOR_ERROR)
-                    messagebox.showerror("校准失败", data.get("message", "校准失败"))
-                    return
-                elif signal_type == "complete":
-                    self.calibration_waiting = False
-                    if data.get("cancelled"):
-                        self.worker_status_label.config(text="已取消")
-                        self._update_statistics()
-                        if hasattr(self, "calibration_progress_label"):
-                            self.calibration_progress_label.config(text="已取消", foreground=COLOR_WARNING)
-                        messagebox.showinfo("已取消", "坐标校准已取消。")
-                        return
-
-                    self.worker_status_label.config(text=STATUS_DONE)
-                    self._update_statistics()
-                    saved_path = data.get("path") or str(get_coordinates_path())
-                    if hasattr(self, "calibration_progress"):
-                        self.calibration_progress["value"] = 100
-                    if hasattr(self, "calibration_progress_label"):
-                        self.calibration_progress_label.config(text="校准完成", foreground=COLOR_SUCCESS)
-                    messagebox.showinfo(
-                        "校准完成",
-                        f"坐标校准已完成。\n\n已保存到: {saved_path}\n\n建议点击“测试坐标”确认效果。"
-                    )
-                    return
-
-            if worker.is_alive():
-                self.root.after(100, poll_signals)
-            else:
-                # Worker ended without emitting complete/error (unexpected)
-                self.calibration_waiting = False
-                self._update_statistics()
-                self.worker_status_label.config(text=STATUS_DONE)
-                messagebox.showinfo(
-                    "校准结束",
-                    f"校准流程已结束。\n\n请检查是否生成了 {get_coordinates_path()}，并点击“测试坐标”确认效果。"
-                )
-
-        poll_signals()
+        self._refresh_calibration_items()
 
     def _open_articles_dir(self):
         """Open articles directory"""

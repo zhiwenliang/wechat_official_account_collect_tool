@@ -136,6 +136,140 @@ def _click_with_activation(
     click(x, y)
 
 
+def _working_config(config: Optional[dict] = None) -> dict:
+    """Return a mutable calibration config for GUI item updates."""
+    return config if config is not None else load_coordinates_config(create_if_missing=False)
+
+
+def _point_dict(point: PointLike, description: str) -> dict:
+    """Convert a point-like object into the stored config shape."""
+    return {
+        "x": int(point.x),
+        "y": int(point.y),
+        "description": description,
+    }
+
+
+def calibrate_article_click_area(
+    *,
+    first_top: PointLike,
+    second_top: PointLike,
+    first_bottom: PointLike,
+    config: Optional[dict] = None,
+) -> dict:
+    """Save article click area and row height from three sampled positions."""
+    working_config = _working_config(config)
+    row_height = abs(second_top.y - first_top.y)
+    click_y = _build_click_area(working_config, first_bottom, row_height)
+    path = save_coordinates_config(working_config)
+    return {
+        "path": path,
+        "row_height": row_height,
+        "click_area": {
+            "x": int(first_bottom.x),
+            "y": int(click_y),
+        },
+    }
+
+
+def calibrate_scroll_amount(
+    *,
+    before_scroll: PointLike,
+    after_scroll: PointLike,
+    config: Optional[dict] = None,
+) -> dict:
+    """Save the scroll amount derived from the current row height."""
+    working_config = _working_config(config)
+    row_height = int(working_config["windows"]["article_list"].get("row_height") or 0)
+    if row_height <= 0:
+        raise ValueError("请先完成“文章点击位置”校准，才能计算滚动单位")
+
+    pixels_per_unit = abs(after_scroll.y - before_scroll.y)
+    scroll_amount = round(row_height / pixels_per_unit) if pixels_per_unit > 0 else 3
+    working_config["windows"]["article_list"]["scroll_amount"] = scroll_amount
+    path = save_coordinates_config(working_config)
+    return {
+        "path": path,
+        "scroll_amount": scroll_amount,
+        "pixels_per_unit": pixels_per_unit,
+        "row_height": row_height,
+    }
+
+
+def set_visible_articles(*, visible_count: int, config: Optional[dict] = None) -> dict:
+    """Persist the visible article count."""
+    working_config = _working_config(config)
+    working_config["windows"]["article_list"]["visible_articles"] = int(visible_count)
+    path = save_coordinates_config(working_config)
+    return {
+        "path": path,
+        "visible_count": int(visible_count),
+    }
+
+
+def calibrate_more_button(*, position: PointLike, config: Optional[dict] = None) -> dict:
+    """Save the browser more-button position."""
+    working_config = _working_config(config)
+    working_config["windows"]["browser"]["more_button"] = _point_dict(position, "右上角更多按钮")
+    path = save_coordinates_config(working_config)
+    return {
+        "path": path,
+        "position": working_config["windows"]["browser"]["more_button"],
+    }
+
+
+def calibrate_copy_link_menu(*, position: PointLike, config: Optional[dict] = None) -> dict:
+    """Save the copy-link menu position."""
+    working_config = _working_config(config)
+    working_config["windows"]["browser"]["copy_link_menu"] = _point_dict(position, "复制链接菜单项")
+    path = save_coordinates_config(working_config)
+    return {
+        "path": path,
+        "position": working_config["windows"]["browser"]["copy_link_menu"],
+    }
+
+
+def calibrate_tab_management(
+    *,
+    first_tab: PointLike,
+    close_button: PointLike,
+    config: Optional[dict] = None,
+) -> dict:
+    """Save the tab-management positions in one operation."""
+    working_config = _working_config(config)
+    working_config["windows"]["browser"]["first_tab"] = _point_dict(first_tab, "第一个标签位置")
+    working_config["windows"]["browser"]["close_tab_button"] = _point_dict(close_button, "标签关闭按钮")
+    path = save_coordinates_config(working_config)
+    return {
+        "path": path,
+        "first_tab": working_config["windows"]["browser"]["first_tab"],
+        "close_button": working_config["windows"]["browser"]["close_tab_button"],
+    }
+
+
+def open_calibration_article_tab(
+    *,
+    click: ClickFn,
+    sleep: SleepFn = default_sleep,
+    config: Optional[dict] = None,
+) -> None:
+    """Open one article tab using the current click target and macOS activation rules."""
+    working_config = _working_config(config)
+    click_area = working_config["windows"]["article_list"].get("article_click_area") or {}
+    click_x = click_area.get("x")
+    click_y = click_area.get("y")
+    if click_x is None or click_y is None:
+        raise ValueError("请先完成“文章点击位置”校准")
+
+    _click_with_activation(
+        click,
+        sleep,
+        int(click_x),
+        int(click_y),
+        activate_first=_requires_window_activation(),
+    )
+
+
 def run_calibration_flow(
     *,
     mode: str,
