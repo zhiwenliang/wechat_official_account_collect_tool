@@ -2002,7 +2002,7 @@ class WeChatScraperGUI:
 
     def _open_articles_dir(self):
         """Open articles directory"""
-        articles_dir = Path("data/articles")
+        articles_dir = self.file_store.base_dir
         if articles_dir.exists():
             webbrowser.open(str(articles_dir))
         else:
@@ -2010,7 +2010,7 @@ class WeChatScraperGUI:
 
     def _open_data_dir(self):
         """Open data directory"""
-        data_dir = Path("data")
+        data_dir = self.db.db_path.parent
         if data_dir.exists():
             webbrowser.open(str(data_dir))
         else:

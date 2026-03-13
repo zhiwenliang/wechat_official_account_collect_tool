@@ -4,16 +4,18 @@ Shared calibration helpers for CLI and GUI flows.
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from time import sleep as default_sleep
 from typing import Callable, Optional, Protocol
 
+from utils.runtime_env import resolve_runtime_path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
 COORDINATES_RELATIVE_PATH = Path("config") / "coordinates.json"
 COPY_LINK_COUNTDOWN_SECONDS = 10
 OPEN_TABS_CLICKS = 20
 TOTAL_CALIBRATION_STEPS = 8
+WINDOW_ACTIVATION_WAIT_SECONDS = 0.2
 
 
 class PointLike(Protocol):
@@ -36,8 +38,8 @@ ClickOptionalFn = Callable[..., None]
 
 
 def get_coordinates_path() -> Path:
-    """Return the repository-relative coordinates config path."""
-    return REPO_ROOT / COORDINATES_RELATIVE_PATH
+    """Return the writable coordinates config path."""
+    return resolve_runtime_path(COORDINATES_RELATIVE_PATH)
 
 
 def create_default_coordinates_config() -> dict:
@@ -112,6 +114,26 @@ def _build_click_area(config: dict, pos_bottom: PointLike, row_height: int) -> i
     }
     config["windows"]["article_list"]["row_height"] = row_height
     return click_y
+
+
+def _requires_window_activation() -> bool:
+    """Return whether the current platform needs a focus-activation click."""
+    return sys.platform == "darwin"
+
+
+def _click_with_activation(
+    click: ClickOptionalFn,
+    sleep: SleepFn,
+    x: int,
+    y: int,
+    *,
+    activate_first: bool,
+) -> None:
+    """Click a target, optionally sending a first click to activate the window."""
+    if activate_first:
+        click(x, y)
+        sleep(WINDOW_ACTIVATION_WAIT_SECONDS)
+    click(x, y)
 
 
 def run_calibration_flow(
@@ -316,8 +338,18 @@ def run_calibration_flow(
     if click_x is None or click_y is None:
         raise RuntimeError("文章点击位置未校准，无法自动打开标签")
 
+    needs_window_activation = _requires_window_activation()
+    if needs_window_activation:
+        log("检测到 macOS，将在每次点击前先激活公众号窗口。")
+
     for i in range(OPEN_TABS_CLICKS):
-        click(click_x, click_y)
+        _click_with_activation(
+            click,
+            sleep,
+            click_x,
+            click_y,
+            activate_first=needs_window_activation,
+        )
         if mode == "cli":
             log(f"   已点击 {i+1}/20")
         else:
@@ -383,6 +415,7 @@ def run_calibration_test_flow(
     copy_menu = config["windows"]["browser"]["copy_link_menu"]
     first_tab = config["windows"]["browser"]["first_tab"]
     close_btn = config["windows"]["browser"]["close_tab_button"]
+    needs_window_activation = _requires_window_activation()
 
     heading = "\n=== 测试校准结果 ===\n" if mode == "cli" else "=== 开始测试坐标 ===\n"
     log(heading)
@@ -425,7 +458,13 @@ def run_calibration_test_flow(
     if pause("按回车开始...") is None:
         return None
     move_to(more_btn["x"], more_btn["y"], 1)
-    click()
+    _click_with_activation(
+        click,
+        sleep,
+        more_btn["x"],
+        more_btn["y"],
+        activate_first=needs_window_activation,
+    )
     sleep(0.5)
     move_to(copy_menu["x"], copy_menu["y"], 1)
     if not confirm("鼠标位置是否在复制链接菜单项上？"):
@@ -439,7 +478,13 @@ def run_calibration_test_flow(
         return None
     log("  打开3个测试标签...")
     for i in range(3):
-        click(click_area["x"], click_area["y"])
+        _click_with_activation(
+            click,
+            sleep,
+            click_area["x"],
+            click_area["y"],
+            activate_first=needs_window_activation,
+        )
         log(f"  已打开 {i+1}/3")
         sleep(2)
 

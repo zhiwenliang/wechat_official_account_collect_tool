@@ -6,11 +6,16 @@ import sqlite3
 from pathlib import Path
 from datetime import datetime
 
+from utils.runtime_env import resolve_runtime_path
+
 class Database:
     EMPTY_CONTENT_CONDITION = "status = 'scraped' AND TRIM(COALESCE(content_html, '')) = ''"
 
     def __init__(self, db_path="data/articles.db"):
-        self.db_path = Path(db_path)
+        if db_path == "data/articles.db":
+            self.db_path = resolve_runtime_path(db_path)
+        else:
+            self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
 

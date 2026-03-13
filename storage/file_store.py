@@ -7,9 +7,14 @@ from datetime import datetime
 from markdownify import markdownify as md
 import re
 
+from utils.runtime_env import resolve_runtime_path
+
 class FileStore:
     def __init__(self, base_dir="data/articles"):
-        self.base_dir = Path(base_dir)
+        if base_dir == "data/articles":
+            self.base_dir = resolve_runtime_path(base_dir)
+        else:
+            self.base_dir = Path(base_dir)
         self.html_dir = self.base_dir / "html"
         self.md_dir = self.base_dir / "markdown"
 

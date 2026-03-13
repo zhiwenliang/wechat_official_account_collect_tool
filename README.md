@@ -83,16 +83,51 @@ python main.py index
 
 ## 打包可执行程序
 
-项目提供了统一打包脚本，可在当前平台生成 GUI 和 CLI 可执行程序。
-打包完成后，脚本会自动把 Playwright 的 Chromium 浏览器目录复制到产物运行目录旁边。
+项目提供了统一打包脚本，并带有 GitHub Actions 工作流用于生成 GUI 可执行程序。
+当前推荐通过 Actions 生成以下内部使用产物：
+- `wechat-scraper-gui-macos-arm64.zip`
+- `wechat-scraper-gui-windows-x64.zip`
 
-### 安装打包依赖
+打包完成后，脚本会自动把 Playwright 的 Chromium 浏览器目录复制到产物运行目录旁边，解压后即可直接执行阶段 2 抓取。
+
+### 推荐：通过 GitHub Actions 打包 GUI
+
+仓库内置工作流：`.github/workflows/package-gui.yml`
+
+使用方式：
+1. 打开 GitHub 仓库的 **Actions** 页面
+2. 选择 **Package GUI Executables**
+3. 点击 **Run workflow**
+4. 等待 `macos-14` 和 `windows-latest` 两个任务完成
+5. 在该次 workflow 的 Artifacts 中下载打包结果
+
+说明：
+- macOS 产物仅面向 Apple Silicon（arm64）
+- Windows 产物面向 x64
+- 当前产物未签名、未 notarize，仅适合内部使用
+- CI 会校验 `.app` / `.exe` 和 `ms-playwright` 浏览器目录是否存在，不完整产物会直接失败
+
+### 本地手动打包
 
 ```bash
-pip install pyinstaller
+# 如需重新生成默认图标资源
+python scripts/generate_icon_assets.py
+
+# 安装项目依赖和打包依赖
+pip install -r requirements.txt pyinstaller
+
+# 安装 Playwright Chromium
+playwright install chromium
+
+# 生成 GUI 分发压缩包
+python scripts/package_app.py --target gui --archive
 ```
 
-### 打包命令
+生成结果默认输出到 `dist/<platform>/`，例如：
+- `dist/macos-arm64/wechat-scraper-gui-macos-arm64.zip`
+- `dist/windows-x64/wechat-scraper-gui-windows-x64.zip`
+
+如需本地生成未压缩产物或其他目标，也可以继续使用：
 
 ```bash
 # 同时打包 GUI 和 CLI
@@ -108,12 +143,24 @@ python scripts/package_app.py --target cli
 python scripts/package_app.py --target gui --onefile
 ```
 
-生成结果默认输出到 `dist/<platform>/`。
-
 注意：
 - 需要在目标平台上执行打包，不能跨平台直接生成可执行文件
+- 打包环境应当先确认 `python -m gui.main` 可以正常启动，再执行 PyInstaller
 - 打包前需要先在构建机执行 `playwright install chromium`
 - 打包后的程序会优先使用产物旁边的 `ms-playwright` 浏览器目录
+- 若未显式传入 `--icon`，打包脚本会默认使用 `assets/icons/wechat-scraper.icns` 或 `assets/icons/wechat-scraper.ico`
+- 本地 macOS 打包若用于当前仓库约定的分发目标，应在 Apple Silicon 机器上执行
+
+### 内部使用注意事项
+
+- macOS 未签名应用首次打开时，可能需要在 Finder 中右键应用后选择“打开”，或在“系统设置 -> 隐私与安全性”中允许执行
+- Windows 未签名程序可能触发 SmartScreen，通常需要点击“更多信息”后再选择“仍要运行”
+- 打包后的运行时数据不会写入 `.app` 或 `.exe` 目录
+- macOS 运行时数据目录：`~/Library/Application Support/WeChatScraper/`
+- Windows 运行时数据目录：`%APPDATA%\\WeChatScraper\\`
+- 坐标配置会保存到上述目录下的 `config/coordinates.json`
+- 数据库和导出的文章会保存到上述目录下的 `data/`
+- 如果 GUI 应用启动时只在 Dock 或任务栏闪一下就退出，请检查上述运行时目录中的 `wechat-scraper-startup.log`
 
 ### 查看数据库状态
 

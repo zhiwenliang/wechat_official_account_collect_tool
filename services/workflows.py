@@ -173,7 +173,7 @@ def run_collection_workflow(collector, *, log: LogFn = print, progress: Optional
         log("收到停止信号，已停止采集")
     else:
         log(f"采集完成！共采集 {article_count} 篇文章")
-    log("数据已保存到数据库: data/articles.db")
+    log(f"数据已保存到数据库: {collector.db.db_path}")
     log(f"\n开始时间: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
     log(f"结束时间: {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
     log(f"总耗时: {elapsed.total_seconds():.1f} 秒 ({elapsed.total_seconds()/60:.1f} 分钟)")
