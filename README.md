@@ -79,6 +79,12 @@ python main.py retry
 
 # 7. 单独生成文章目录索引（可选）
 python main.py index
+
+# 8. 导出数据库和文章备份为一个 zip 数据包
+python main.py export-data backup.zip
+
+# 9. 导入外部数据库文件（只替换数据库）
+python main.py import-db C:\\path\\to\\articles.db
 ```
 
 ## 打包可执行程序
@@ -193,6 +199,18 @@ python main.py stats
 python main.py retry
 ```
 将所有失败的文章状态重置为待抓取，然后运行 `python main.py scrape` 重新抓取
+
+**导出当前数据包**：
+```bash
+python main.py export-data backup.zip
+```
+将当前 `data/articles.db` 以及 `data/articles/html/`、`data/articles/markdown/` 打包成一个 zip 文件，便于备份或迁移。
+
+**导入数据库文件**：
+```bash
+python main.py import-db C:\path\to\articles.db
+```
+只替换当前运行时数据库文件，并自动备份旧数据库。注意：该操作不会同步本地 HTML/Markdown 备份目录，因此导入后的数据库记录与本地备份文件可能不一致。
 
 **断点续传**：
 如果抓取过程中断，直接再次运行 `python main.py scrape` 即可继续，已抓取的文章会自动跳过

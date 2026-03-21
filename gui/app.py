@@ -25,6 +25,7 @@ from services.calibration_service import (
     open_calibration_article_tab,
     set_visible_articles,
 )
+from services.data_transfer import export_data_bundle, import_database_file
 from storage.database import Database
 from storage.file_store import FileStore
 from gui.worker import (
@@ -250,6 +251,9 @@ class WeChatScraperGUI:
         # File menu
         file_menu = tk.Menu(menubar, tearoff=0)
         menubar.add_cascade(label="文件", menu=file_menu)
+        file_menu.add_command(label="导入数据库", command=self._import_database)
+        file_menu.add_command(label="导出数据包", command=self._export_data_bundle)
+        file_menu.add_separator()
         file_menu.add_command(label="打开文章目录", command=self._open_articles_dir)
         file_menu.add_command(label="打开数据库位置", command=self._open_data_dir)
         file_menu.add_separator()
@@ -2563,6 +2567,74 @@ class WeChatScraperGUI:
             webbrowser.open(str(data_dir))
         else:
             messagebox.showinfo("提示", "数据目录不存在")
+
+    def _export_data_bundle(self):
+        """Export the runtime database and article backups as one zip archive."""
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        default_name = f"wechat-scraper-data-{timestamp}.zip"
+        output_path = filedialog.asksaveasfilename(
+            title="导出数据包",
+            parent=self.root,
+            defaultextension=".zip",
+            initialfile=default_name,
+            filetypes=[("ZIP archive", "*.zip")],
+        )
+        if not output_path:
+            return
+
+        try:
+            result = export_data_bundle(output_path)
+        except Exception as exc:
+            messagebox.showerror("导出失败", str(exc))
+            return
+
+        messagebox.showinfo(
+            "导出完成",
+            f"已导出到:\n{result.archive_path}\n\n共打包 {result.file_count} 个文件。",
+        )
+
+    def _import_database(self):
+        """Import an external database file and replace the runtime database."""
+        if self.current_worker and self.current_worker.is_alive():
+            messagebox.showinfo("提示", "已有任务正在运行")
+            return
+
+        source_path = filedialog.askopenfilename(
+            title="选择要导入的数据库文件",
+            parent=self.root,
+            filetypes=[("SQLite database", "*.db"), ("All files", "*.*")],
+        )
+        if not source_path:
+            return
+
+        confirmed = messagebox.askyesno(
+            "确认导入数据库",
+            "导入会替换当前运行时数据库，并先创建一个本地备份。\n\n"
+            "注意：这只会替换数据库文件，不会同步 HTML/Markdown 备份目录，"
+            "导入后数据库记录与本地备份文件可能不一致。\n\n"
+            "是否继续？",
+        )
+        if not confirmed:
+            return
+
+        try:
+            result = import_database_file(source_path, target_db_path=self.db.db_path)
+        except Exception as exc:
+            messagebox.showerror("导入失败", str(exc))
+            return
+
+        self.db = Database(self.db.db_path)
+        self.checked_article_ids.clear()
+        self.article_check_anchor_id = None
+        self.article_current_page = 1
+        self._update_statistics()
+        if hasattr(self, "articles_tree"):
+            self._refresh_article_list()
+
+        message = f"已导入数据库:\n{result.source_db_path}"
+        if result.backup_path:
+            message += f"\n\n原数据库已备份到:\n{result.backup_path}"
+        messagebox.showinfo("导入完成", message)
 
     def _show_about(self):
         """Show about dialog"""

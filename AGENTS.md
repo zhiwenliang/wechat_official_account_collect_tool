@@ -19,10 +19,18 @@
 - `config/coordinates.json` and `data/`: local runtime state (intentionally gitignored).
   - Outputs land under `data/articles/html/` and `data/articles/markdown/` (plus `data/articles.db`).
 
+## Environment Management
+
+- This repository is typically run from a Conda environment, not a local `.venv`.
+- Prefer reusing the existing Conda environment for this project (for example `wechat-scraper`) instead of creating a new virtualenv unless the user explicitly asks for that.
+- Before running project commands, activate the Conda environment and ensure dependencies are installed there.
+- If Python dependencies appear missing, check whether Conda was activated first before assuming the project is misconfigured.
+
 ## Setup, Run, and Common Commands
 
 ```bash
-python -m venv .venv && source .venv/bin/activate
+conda create -n wechat-scraper python=3.10
+conda activate wechat-scraper
 pip install -r requirements.txt
 playwright install chromium
 
@@ -34,6 +42,8 @@ python main.py retry       # reset failed -> pending
 python main.py index       # regenerate `data/articles/markdown/INDEX.md`
 python -m gui.main         # launch GUI (optional)
 ```
+
+- For day-to-day use, usually only `conda activate wechat-scraper` is needed before running the commands above.
 
 ## Coding Style & Naming
 
