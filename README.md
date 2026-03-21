@@ -170,6 +170,7 @@ python scripts/package_app.py --target gui --onefile
 - macOS 运行时数据目录：`~/Library/Application Support/WeChatScraper/`
 - Windows 运行时数据目录：`%APPDATA%\\WeChatScraper\\`
 - 坐标配置会保存到上述目录下的 `config/coordinates.json`
+- `config/` 和 `data/` 都属于本机运行时生成内容，不应提交到仓库
 - 数据库和导出的文章会保存到上述目录下的 `data/`
 - 如果 GUI 应用启动时只在 Dock 或任务栏闪一下就退出，请检查上述运行时目录中的 `wechat-scraper-startup.log`
 - 如果 macOS 提示“已损坏，无法打开”，通常是 Gatekeeper 拦截了未签名或未 notarize 的应用。临时处理可在接收方机器执行：`xattr -dr com.apple.quarantine /path/to/wechat-scraper-gui.app`

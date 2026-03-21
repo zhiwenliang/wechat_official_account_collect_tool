@@ -43,5 +43,5 @@ ENV/
 data/
 storage/*.db
 storage/*.db-journal
-config/coordinates.json
+config/
 *.log
