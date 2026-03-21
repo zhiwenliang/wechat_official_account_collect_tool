@@ -52,7 +52,7 @@ def scrape_content():
 def generate_index():
     """生成文章目录索引"""
     index_path = generate_article_index()
-    print(f"✓ 索引已生成: {index_path}")
+    print(f"索引已生成: {index_path}")
 
 
 def show_statistics():
@@ -78,7 +78,7 @@ def retry_failed():
     affected = reset_failed_articles(Database())
 
     if affected > 0:
-        print(f"✓ 已将 {affected} 篇失败文章重置为待抓取状态")
+        print(f"已将 {affected} 篇失败文章重置为待抓取状态")
         print("现在可以运行 'python main.py scrape' 重新抓取")
     else:
         print("没有失败的文章需要重试")
@@ -113,7 +113,7 @@ def main():
         print("  python main.py retry      - 重新抓取失败的文章")
         print("  python main.py export-data <zip_path> - 导出数据库和文章备份")
         print("  python main.py import-db <db_path>    - 导入外部数据库文件")
-        return
+        return 1
 
     command = sys.argv[1]
 
@@ -121,42 +121,52 @@ def main():
         from scraper.calibrator import calibrate
 
         calibrate()
+        return 0
     elif command == "test":
         from scraper.calibrator import test_calibration
 
         test_calibration()
+        return 0
     elif command == "collect":
         collector = LinkCollector()
         collector.run()
+        return 0
     elif command == "scrape":
         scrape_content()
+        return 0
     elif command == "index":
         generate_index()
+        return 0
     elif command == "stats":
         show_statistics()
+        return 0
     elif command == "retry":
         retry_failed()
+        return 0
     elif command == "export-data":
         if len(sys.argv) < 3:
             print("用法: python main.py export-data <zip_path>")
-            return
+            return 1
         try:
             export_data_bundle_command(sys.argv[2])
         except Exception as exc:
             print(f"导出失败: {exc}")
-            raise SystemExit(1)
+            return 1
+        return 0
     elif command == "import-db":
         if len(sys.argv) < 3:
             print("用法: python main.py import-db <db_path>")
-            return
+            return 1
         try:
             import_database_command(sys.argv[2])
         except Exception as exc:
             print(f"导入失败: {exc}")
-            raise SystemExit(1)
+            return 1
+        return 0
     else:
         print(f"未知命令: {command}")
+        return 1
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

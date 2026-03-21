@@ -22,6 +22,16 @@ class FileStore:
         self.html_dir.mkdir(parents=True, exist_ok=True)
         self.md_dir.mkdir(parents=True, exist_ok=True)
 
+    def _is_managed_backup_path(self, path):
+        """Return whether a path stays inside the managed article backup tree."""
+        candidate = Path(path).resolve(strict=False)
+        base_dir = self.base_dir.resolve(strict=False)
+        try:
+            candidate.relative_to(base_dir)
+            return True
+        except ValueError:
+            return False
+
     def _sanitize_filename(self, title):
         """清理文件名中的非法字符"""
         title = re.sub(r'[<>:"/\\|?*]', '', title)
@@ -123,15 +133,21 @@ class FileStore:
         file_path = article_data.get("file_path")
         if file_path:
             html_path = Path(file_path)
-            if html_path.exists():
+            if self._is_managed_backup_path(html_path) and html_path.exists():
                 html_path.unlink()
                 removed.append(str(html_path))
 
-            md_path = self.md_dir / f"{html_path.stem}.md"
-            if md_path.exists():
+                md_path = self.md_dir / f"{html_path.stem}.md"
+            else:
+                md_path = None
+
+            if md_path is not None and md_path.exists():
                 md_path.unlink()
                 removed.append(str(md_path))
-            return removed
+                return removed
+
+            if removed:
+                return removed
 
         filename = f"{self.build_article_filename(article_data)}"
         html_path = self.html_dir / f"{filename}.html"

@@ -43,6 +43,18 @@ def _emit_progress(
         progress(current, total, message, **kwargs)
 
 
+def _remaining_visible_article_click_positions(collector, remaining_count: int) -> list[int]:
+    """Return click positions for the remaining visible rows on the last screen."""
+    article_list = collector.config["windows"]["article_list"]
+    base_y = article_list["article_click_area"]["y"]
+    row_height = int(article_list.get("row_height") or 0)
+
+    if row_height <= 0:
+        return [base_y for _ in range(remaining_count)]
+
+    return [base_y + (index * row_height) for index in range(remaining_count)]
+
+
 def run_collection_workflow(collector, *, log: LogFn = print, progress: Optional[ProgressFn] = None):
     """Run the shared Stage 1 collection workflow."""
     start_time = datetime.now()
@@ -143,14 +155,14 @@ def run_collection_workflow(collector, *, log: LogFn = print, progress: Optional
         remaining_count = collector.config['windows']['article_list']['visible_articles']
         log(f"\n处理剩余 {remaining_count} 篇可见文章（不滚动）\n")
 
-        for i in range(remaining_count):
+        for i, click_y in enumerate(_remaining_visible_article_click_positions(collector, remaining_count)):
             if article_count >= max_articles or collector.should_stop():
                 stopped = collector.should_stop()
                 break
 
             log(f"\n[剩余{i+1}/{remaining_count}] 处理中...")
 
-            if not collector.click_article(current_click_y):
+            if not collector.click_article(click_y):
                 stopped = collector.should_stop()
                 if stopped:
                     break

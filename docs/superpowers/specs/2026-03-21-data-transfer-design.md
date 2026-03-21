@@ -31,7 +31,7 @@
 
 1. User selects a `.db` file.
 2. Validate that the selected file is a readable SQLite database with an `articles` table.
-3. Backup the current runtime database to a timestamped `.bak` file in the same directory.
+3. Backup the current runtime database to a timestamped backup database file in the same directory.
 4. Copy the selected `.db` over the runtime `data/articles.db`.
 5. Refresh GUI statistics and article list.
 

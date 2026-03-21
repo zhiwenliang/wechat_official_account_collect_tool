@@ -55,6 +55,7 @@ class WeChatScraperGUI:
         self.current_worker = None
         self.worker_timer = None
         self.is_stopping = False  # Track if we're in the middle of stopping
+        self.close_requested = False
 
         # Calibration UI state
         self.calibration_item_widgets = {}
@@ -76,6 +77,7 @@ class WeChatScraperGUI:
 
         self._setup_ui()
         self.root.bind_all("<Escape>", self._handle_escape_stop)
+        self.root.protocol("WM_DELETE_WINDOW", self._request_close)
         self._update_statistics()
 
     def _call_on_ui_thread(self, func):
@@ -257,7 +259,7 @@ class WeChatScraperGUI:
         file_menu.add_command(label="打开文章目录", command=self._open_articles_dir)
         file_menu.add_command(label="打开数据库位置", command=self._open_data_dir)
         file_menu.add_separator()
-        file_menu.add_command(label="退出", command=self.root.quit)
+        file_menu.add_command(label="退出", command=self._request_close)
 
         # Tools menu
         tools_menu = tk.Menu(menubar, tearoff=0)
@@ -2310,6 +2312,8 @@ class WeChatScraperGUI:
     def _stop_worker(self):
         """Stop the current worker"""
         if not self.current_worker or not self.current_worker.is_alive():
+            if self.close_requested:
+                self._finalize_close()
             return
 
         self.is_stopping = True
@@ -2333,18 +2337,33 @@ class WeChatScraperGUI:
         # Wait for worker to stop (with timeout)
         start_wait_time = time.time()
         MAX_WAIT_TIME = 10  # Maximum 10 seconds to stop
+        waiting_notice_shown = False
+        force_quit_prompted = False
 
         def wait_for_stop():
+            nonlocal waiting_notice_shown, force_quit_prompted
+
             # Check if worker completed normally (via signals)
             if not self.is_stopping and self.current_worker is None:
+                if self.close_requested:
+                    self._finalize_close()
                 return  # Worker completed, nothing to do
 
             # Check timeout
             if time.time() - start_wait_time > MAX_WAIT_TIME:
-                self.worker_status_label.config(text="停止超时")
-                self.is_stopping = False
-                self._reset_start_buttons()
-                return
+                if not waiting_notice_shown:
+                    self.worker_status_label.config(text="等待当前步骤结束...")
+                    waiting_notice_shown = True
+
+                if self.close_requested and not force_quit_prompted:
+                    force_quit_prompted = True
+                    if messagebox.askyesno(
+                        "强制退出",
+                        "后台任务仍未结束。强制退出可能导致数据库或备份文件未完整写入。\n\n是否强制退出？",
+                    ):
+                        self.is_stopping = False
+                        self._finalize_close()
+                        return
 
             if self.current_worker and self.current_worker.is_alive():
                 # Keep checking
@@ -2353,6 +2372,8 @@ class WeChatScraperGUI:
                 # Worker has stopped but complete signal wasn't received (edge case)
                 self.is_stopping = False
                 self._reset_start_buttons()
+                if self.close_requested:
+                    self._finalize_close()
 
         wait_for_stop()
 
@@ -2424,16 +2445,45 @@ class WeChatScraperGUI:
                 self.worker_status_label.config(text=data['status'])
 
             elif signal_type == 'error':
-                messagebox.showerror("错误", data['message'])
-                self.worker_status_label.config(text=STATUS_ERROR)
+                self._handle_worker_error(data['message'])
+                return
 
             elif signal_type == 'complete':
                 self._worker_complete(data)
                 return  # Stop checking after complete
 
         # Continue checking if worker is still alive
-        if self.current_worker and self.current_worker.is_alive():
+        if self._should_continue_worker_signal_polling():
             self.root.after(50, self._check_worker_signals)
+
+    def _should_continue_worker_signal_polling(self):
+        """Keep polling until the worker is done and its signal queue is drained."""
+        if not self.current_worker:
+            return False
+
+        if self.current_worker.is_alive():
+            return True
+
+        return not self.current_worker.signals.queue.empty()
+
+    def _handle_worker_error(self, message):
+        """Handle terminal worker errors and restore UI state."""
+        self.current_worker = None
+        self.is_stopping = False
+        self.worker_status_label.config(text=STATUS_ERROR)
+        self._update_statistics()
+        self._reset_start_buttons()
+
+        if self.worker_timer:
+            try:
+                self.root.after_cancel(self.worker_timer)
+            except Exception:
+                pass
+            self.worker_timer = None
+
+        messagebox.showerror("错误", message)
+        if self.close_requested:
+            self._finalize_close()
 
     def _worker_complete(self, data):
         """Handle worker completion"""
@@ -2470,9 +2520,12 @@ class WeChatScraperGUI:
         if self.worker_timer:
             try:
                 self.root.after_cancel(self.worker_timer)
-            except:
+            except Exception:
                 pass
             self.worker_timer = None
+
+        if self.close_requested:
+            self._finalize_close()
 
     def _show_completion_message(self, data):
         """Show completion message (non-blocking)"""
@@ -2570,6 +2623,10 @@ class WeChatScraperGUI:
 
     def _export_data_bundle(self):
         """Export the runtime database and article backups as one zip archive."""
+        if self.current_worker and self.current_worker.is_alive():
+            messagebox.showinfo("提示", "已有任务正在运行")
+            return
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         default_name = f"wechat-scraper-data-{timestamp}.zip"
         output_path = filedialog.asksaveasfilename(
@@ -2651,6 +2708,31 @@ class WeChatScraperGUI:
 作者：Claude
         """
         messagebox.showinfo("关于", about_text)
+
+    def _finalize_close(self):
+        """Close the main window after any requested worker shutdown handling."""
+        self.close_requested = False
+        self.root.destroy()
+
+    def _request_close(self):
+        """Close the GUI, stopping active background work first when necessary."""
+        if self.current_worker and self.current_worker.is_alive():
+            if self.is_stopping:
+                self.close_requested = True
+                return
+
+            confirmed = messagebox.askyesno(
+                "确认退出",
+                "当前有后台任务正在运行。\n\n将先请求停止任务，再在任务结束后退出窗口。是否继续？",
+            )
+            if not confirmed:
+                return
+
+            self.close_requested = True
+            self._stop_worker()
+            return
+
+        self._finalize_close()
 
     def run(self):
         """Run the GUI application"""

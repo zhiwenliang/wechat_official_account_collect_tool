@@ -9,6 +9,18 @@ from pathlib import Path
 
 from utils.runtime_env import resolve_runtime_path
 
+REQUIRED_ARTICLE_COLUMNS = {
+    "id",
+    "title",
+    "url",
+    "publish_time",
+    "scraped_at",
+    "status",
+    "file_path",
+    "content_html",
+    "content_markdown",
+}
+
 
 @dataclass
 class ExportDataResult:
@@ -35,12 +47,16 @@ def _normalize_path(path: str | Path) -> Path:
     return Path(path).expanduser().resolve()
 
 
-def _iter_article_backup_files(articles_dir: Path):
+def _iter_article_backup_files(articles_dir: Path, excluded_paths: set[Path] | None = None):
+    excluded_paths = excluded_paths or set()
     for relative_root in (Path("html"), Path("markdown")):
         root = articles_dir / relative_root
         if not root.exists():
             continue
         for file_path in sorted(path for path in root.rglob("*") if path.is_file()):
+            normalized = file_path.resolve()
+            if normalized in excluded_paths:
+                continue
             yield file_path
 
 
@@ -57,6 +73,12 @@ def _validate_articles_database(db_path: Path) -> None:
         )
         if cursor.fetchone() is None:
             raise ValueError("选择的数据库缺少 articles 表")
+        cursor.execute("PRAGMA table_info(articles)")
+        existing_columns = {row[1] for row in cursor.fetchall()}
+        missing_columns = sorted(REQUIRED_ARTICLE_COLUMNS - existing_columns)
+        if missing_columns:
+            missing_text = ", ".join(missing_columns)
+            raise ValueError(f"articles 表缺少必要列: {missing_text}")
     finally:
         conn.close()
 
@@ -76,11 +98,12 @@ def export_data_bundle(
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     file_count = 0
+    excluded_paths = {output_path}
     with zipfile.ZipFile(output_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         archive.write(db_path, "articles.db")
         file_count += 1
 
-        for file_path in _iter_article_backup_files(articles_dir):
+        for file_path in _iter_article_backup_files(articles_dir, excluded_paths=excluded_paths):
             archive_name = (Path("articles") / file_path.relative_to(articles_dir)).as_posix()
             archive.write(file_path, archive_name)
             file_count += 1
