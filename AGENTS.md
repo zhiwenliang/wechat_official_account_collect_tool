@@ -55,7 +55,7 @@ python -m gui.main         # launch GUI (optional)
 
 - No dedicated test framework is wired up; current checks are runnable scripts:
   - `python main.py test` (calibration sanity checks).
-  - `python test_stage1.py` / `python test_stage2.py` (manual, side-effecting).
+  - `python scripts/manual/stage1_check.py` / `python scripts/manual/stage2_check.py` (manual, side-effecting).
 - Avoid adding “tests” that require real WeChat UI interaction in CI; keep those as scripts/docs.
 
 ## Commit & Pull Request Guidelines

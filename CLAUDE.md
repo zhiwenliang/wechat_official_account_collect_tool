@@ -58,10 +58,10 @@ sqlite3 data/articles.db "SELECT status, COUNT(*) FROM articles GROUP BY status;
 ### Testing
 ```bash
 # Test stage 1 (link collection)
-python test_stage1.py
+python scripts/manual/stage1_check.py
 
 # Test stage 2 (content scraping)
-python test_stage2.py
+python scripts/manual/stage2_check.py
 ```
 
 ### GUI Application

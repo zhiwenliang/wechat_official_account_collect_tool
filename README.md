@@ -278,8 +278,11 @@ wechat_official_account_collect_tool/
 │       └── markdown/         # Markdown格式文件
 │           ├── INDEX.md      # 文章目录索引
 │           └── *.md
-├── test_stage1.py            # 阶段1测试脚本
-├── test_stage2.py            # 阶段2测试脚本
+├── scripts/
+│   ├── package_app.py        # 打包脚本
+│   └── manual/
+│       ├── stage1_check.py   # 阶段1手动检查脚本
+│       └── stage2_check.py   # 阶段2手动检查脚本
 ├── requirements.txt          # Python依赖
 ├── main.py                   # 主入口
 ├── CLAUDE.md                 # 项目文档（给AI用）

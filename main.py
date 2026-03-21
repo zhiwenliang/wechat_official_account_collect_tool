@@ -2,6 +2,7 @@
 主入口脚本
 整合链接采集和内容抓取功能
 """
+
 import sys
 import threading
 from utils.escape_listener import EscapeListener
@@ -12,8 +13,13 @@ configure_runtime_environment()
 from scraper.link_collector import LinkCollector
 from scraper.content_scraper import ContentScraper
 from services.data_transfer import export_data_bundle, import_database_file
-from services.workflows import generate_article_index, reset_failed_articles, run_scrape_workflow
+from services.workflows import (
+    generate_article_index,
+    reset_failed_articles,
+    run_scrape_workflow,
+)
 from storage.database import Database
+
 
 def scrape_content():
     """抓取文章内容"""
@@ -42,10 +48,12 @@ def scrape_content():
     if result.failed > 0 and not result.stopped:
         print(f"\n提示: 使用 'python main.py retry' 重新抓取失败的文章")
 
+
 def generate_index():
     """生成文章目录索引"""
     index_path = generate_article_index()
     print(f"✓ 索引已生成: {index_path}")
+
 
 def show_statistics():
     """显示数据库统计信息"""
@@ -58,11 +66,12 @@ def show_statistics():
     print(f"  - 已抓取: {stats['scraped']}")
     print(f"  - 抓取失败: {stats['failed']}")
 
-    if stats['failed'] > 0:
+    if stats["failed"] > 0:
         print(f"\n失败的文章链接:")
-        for url in stats['failed_urls']:
+        for url in stats["failed_urls"]:
             print(f"  - {url}")
         print(f"\n提示: 使用 'python main.py retry' 重新抓取失败的文章")
+
 
 def retry_failed():
     """重新抓取失败的文章"""
@@ -91,6 +100,7 @@ def import_database_command(source_db_path):
         print(f"  已备份旧数据库: {result.backup_path}")
     print("提示: 本操作只替换数据库文件，不会同步 HTML/Markdown 备份目录")
 
+
 def main():
     if len(sys.argv) < 2:
         print("用法:")
@@ -109,9 +119,11 @@ def main():
 
     if command == "calibrate":
         from scraper.calibrator import calibrate
+
         calibrate()
     elif command == "test":
         from scraper.calibrator import test_calibration
+
         test_calibration()
     elif command == "collect":
         collector = LinkCollector()
@@ -144,6 +156,7 @@ def main():
             raise SystemExit(1)
     else:
         print(f"未知命令: {command}")
+
 
 if __name__ == "__main__":
     main()
