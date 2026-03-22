@@ -54,6 +54,13 @@ conda activate wechat-scraper
 conda remove -n wechat-scraper --all
 ```
 
+## 桌面端工作区
+
+- Node.js 建议使用 20.x 或更新的稳定版本。
+- 先安装桌面端依赖：`npm --prefix desktop install`
+- 启动桌面端开发模式：`npm --prefix desktop run dev`
+- `desktop/` 里的 Electron 只负责桌面壳层，Python 侧仍然保留现有的采集与抓取实现，后续会通过 sidecar 方式接入，而不是把业务逻辑重写进前端。
+
 ## 快速开始
 
 ### 完整工作流程
