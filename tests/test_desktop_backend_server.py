@@ -137,6 +137,35 @@ class DesktopBackendServerTests(unittest.TestCase):
             },
         )
 
+    def test_recent_articles_route_clamps_invalid_limit_over_http(self):
+        root = make_case_root()
+        self.addCleanup(lambda: shutil.rmtree(root, ignore_errors=True))
+
+        db = make_database(root)
+        seed_article(db, url="https://example.com/old", title="Old", publish_time="2024-01-01 08:00:00")
+        seed_article(db, url="https://example.com/new", title="New", publish_time="2024-01-02 08:00:00")
+
+        server = DesktopBackendServer(host="127.0.0.1", port=0, db=db)
+        server.start()
+        self.addCleanup(server.stop)
+
+        payload = self._wait_for_json(
+            f"http://{server.host}:{server.port}/api/recent-articles?limit=-1",
+        )
+
+        self.assertEqual(
+            payload,
+            [
+                {
+                    "id": payload[0]["id"],
+                    "title": "New",
+                    "publish_time": "2024-01-02 08:00:00",
+                    "status": "pending",
+                    "is_empty_content": 0,
+                }
+            ],
+        )
+
     def test_articles_route_parses_query_string_over_http(self):
         root = make_case_root()
         self.addCleanup(lambda: shutil.rmtree(root, ignore_errors=True))
@@ -180,7 +209,7 @@ class DesktopBackendServerTests(unittest.TestCase):
             }
         ])
 
-    def _wait_for_json(self, url: str) -> dict:
+    def _wait_for_json(self, url: str):
         deadline = time.time() + 5
 
         while True:

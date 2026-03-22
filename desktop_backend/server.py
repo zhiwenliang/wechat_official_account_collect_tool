@@ -18,7 +18,7 @@ from .runtime import DEFAULT_HOST, DEFAULT_PORT, select_runtime_port
 SERVICE_NAME = "desktop-backend"
 
 
-def _json_bytes(payload: dict[str, Any]) -> bytes:
+def _json_bytes(payload: Any) -> bytes:
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
 
 
@@ -129,7 +129,7 @@ class DesktopBackendServer:
         payload = route(query)
         self._write_json(handler, 200, payload)
 
-    def _write_json(self, handler: BaseHTTPRequestHandler, status_code: int, payload: dict[str, Any]) -> None:
+    def _write_json(self, handler: BaseHTTPRequestHandler, status_code: int, payload: Any) -> None:
         body = _json_bytes(payload)
         handler.send_response(status_code)
         handler.send_header("Content-Type", "application/json; charset=utf-8")

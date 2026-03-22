@@ -12,7 +12,8 @@ def get_statistics_handler(*, db: Database):
 
 
 def get_recent_articles_handler(*, db: Database, limit: int = 5):
-    return [build_recent_article_payload(row) for row in db.get_recent_articles(limit=limit)]
+    safe_limit = max(int(limit), 1)
+    return [build_recent_article_payload(row) for row in db.get_recent_articles(limit=safe_limit)]
 
 
 def get_articles_handler(
