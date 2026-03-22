@@ -96,6 +96,8 @@ describe("renderBackendCopy", () => {
     expect(container.textContent).toContain("启动失败");
     expect(container.textContent).toContain("desktop backend exited");
 
-    root.unmount();
+    await act(async () => {
+      root.unmount();
+    });
   });
 });
