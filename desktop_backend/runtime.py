@@ -19,24 +19,20 @@ def _is_port_available(host: str, port: int) -> bool:
 
 
 def select_runtime_port(host: str = DEFAULT_HOST, preferred_port: int | None = None) -> int:
-    env_port = os.getenv(ENV_PORT_NAME)
-    candidates: list[int] = []
+    preferred = _coerce_port(preferred_port)
+    if preferred is not None and _is_port_available(host, preferred):
+        return preferred
 
-    if env_port:
-        try:
-            candidates.append(int(env_port))
-        except ValueError:
-            pass
-
-    if preferred_port is not None:
-        candidates.append(int(preferred_port))
-
-    candidates.append(DEFAULT_PORT)
-
-    for candidate in candidates:
-        if candidate <= 0:
-            return DEFAULT_PORT
-        if _is_port_available(host, candidate):
-            return candidate
+    env_port = _coerce_port(os.getenv(ENV_PORT_NAME))
+    if env_port is not None and _is_port_available(host, env_port):
+        return env_port
 
     return DEFAULT_PORT
+
+
+def _coerce_port(value: object) -> int | None:
+    try:
+        port = int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    return port if port > 0 else None

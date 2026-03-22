@@ -110,10 +110,6 @@ class DesktopBackendServer:
         path = parsed.path
         query = parse_qs(parsed.query)
 
-        if handler.command != "GET":
-            self._write_json(handler, 405, {"status": "error", "message": "method not allowed"})
-            return
-
         if path == "/health":
             self._write_json(
                 handler,
