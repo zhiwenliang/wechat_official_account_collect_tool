@@ -359,6 +359,55 @@ class DesktopBackendTaskTests(unittest.TestCase):
                 )
                 self.assertEqual(events[-1]["type"], "completed")
 
+    def test_calibration_task_rejects_integer_responses_below_prompt_min_value(self):
+        runtime = FakeCalibrationRuntime()
+
+        with TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config" / "coordinates.json"
+
+            with mock.patch("services.calibration_service.resolve_runtime_path", return_value=config_path):
+                server = create_server(
+                    host="127.0.0.1",
+                    port=0,
+                    calibration_runtime_factory=lambda: runtime,
+                )
+                server.start()
+                self.addCleanup(server.stop)
+
+                payload = post_json(
+                    f"http://{server.host}:{server.port}/tasks/calibration",
+                    {"action": "visible_articles"},
+                )
+                task_id = payload["task_id"]
+
+                first_prompt = self._wait_for_task_prompt(
+                    f"http://{server.host}:{server.port}/tasks/{task_id}",
+                    "visible_articles.value",
+                )
+                self.assertEqual(first_prompt["prompt"]["kind"], "integer")
+                self.assertEqual(first_prompt["prompt"]["min_value"], 1)
+
+                post_json(
+                    f"http://{server.host}:{server.port}/tasks/{task_id}/respond",
+                    {"response": "continue", "value": 0},
+                )
+
+                second_prompt = self._wait_for_task_prompt(
+                    f"http://{server.host}:{server.port}/tasks/{task_id}",
+                    "visible_articles.value",
+                )
+                self.assertEqual(second_prompt["prompt"]["min_value"], 1)
+                self.assertTrue(server.task_registry.is_active(task_id))
+
+                post_json(
+                    f"http://{server.host}:{server.port}/tasks/{task_id}/respond",
+                    {"response": "continue", "value": 3},
+                )
+
+                self._wait_for_task_completion(server.task_registry, task_id)
+                saved_config = json.loads(config_path.read_text(encoding="utf-8"))
+                self.assertEqual(saved_config["windows"]["article_list"]["visible_articles"], 3)
+
     def test_task_snapshot_route_returns_current_events_and_state(self):
         holders: list[BlockingCollector] = []
 

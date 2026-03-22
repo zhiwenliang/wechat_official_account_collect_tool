@@ -103,6 +103,7 @@ function useCalibrationTaskWorkflow() {
     setIsStarting(true);
     setIsStopping(false);
     setIsResponding(false);
+    setTaskId(null);
     setSnapshot(null);
     setEvents([]);
     setSelectedAction(action);
@@ -110,6 +111,8 @@ function useCalibrationTaskWorkflow() {
     try {
       const result = await startCalibrationTask(action);
       setTaskId(result.task_id);
+    } catch (_error: unknown) {
+      setTaskId(null);
     } finally {
       setIsStarting(false);
     }
@@ -188,6 +191,11 @@ export function CalibrationPage() {
     }
   }, [prompt?.kind, prompt?.step, prompt?.default_value]);
 
+  const parsedIntegerValue =
+    prompt?.kind === "integer" && integerValue.trim() !== "" ? Number.parseInt(integerValue, 10) : Number.NaN;
+  const isIntegerPromptValid =
+    prompt?.kind !== "integer" ||
+    (Number.isInteger(parsedIntegerValue) && parsedIntegerValue >= (prompt.min_value ?? 1));
   const controlsLocked = isStarting || isResponding || isStopping || (taskId !== null && (snapshot?.active ?? true));
   const promptButtonsDisabled = isResponding || isStopping;
   const activePromptTitle = renderPromptTitle(prompt, selectedAction);
@@ -271,10 +279,10 @@ export function CalibrationPage() {
               <button
                 type="button"
                 name="calibration-prompt-continue"
-                disabled={promptButtonsDisabled}
+                disabled={promptButtonsDisabled || !isIntegerPromptValid}
                 onClick={() => {
-                  const value = prompt.kind === "integer" ? Number(integerValue) : undefined;
-                  void respond({ response: "continue", value: Number.isFinite(value) ? value : undefined });
+                  const value = prompt.kind === "integer" ? parsedIntegerValue : undefined;
+                  void respond({ response: "continue", value: Number.isInteger(value) ? value : undefined });
                 }}
               >
                 继续

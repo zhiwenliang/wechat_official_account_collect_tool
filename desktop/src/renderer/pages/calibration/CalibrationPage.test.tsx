@@ -240,4 +240,109 @@ describe("CalibrationPage", () => {
       root.unmount();
     });
   });
+
+  it("keeps start buttons enabled after a failed restart from a completed calibration task", async () => {
+    vi.useFakeTimers();
+    const startTask = vi.mocked(startCalibrationTask);
+    startTask
+      .mockResolvedValueOnce({ task_id: "calibration-1" })
+      .mockRejectedValueOnce(new Error("calibration unavailable"));
+    vi.mocked(getTaskSnapshot).mockResolvedValue(
+      createSnapshot({
+        active: false,
+        events: [
+          {
+            type: "started",
+            task_id: "calibration-1",
+            task_type: "calibration",
+          },
+          {
+            type: "completed",
+            task_id: "calibration-1",
+            task_type: "calibration",
+          },
+        ],
+      }),
+    );
+
+    const { container, root } = await renderCalibrationPage();
+    const startButton = container.querySelector<HTMLButtonElement>('button[name="calibration-start-article_click_area"]');
+
+    if (!startButton) {
+      throw new Error("expected article_click_area calibration button");
+    }
+
+    await act(async () => {
+      startButton.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      startButton.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(startTask).toHaveBeenCalledTimes(2);
+    expect(startButton.disabled).toBe(false);
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
+
+  it("does not submit blank integer responses", async () => {
+    vi.useFakeTimers();
+    vi.mocked(startCalibrationTask).mockResolvedValue({ task_id: "calibration-1" });
+    vi.mocked(getTaskSnapshot).mockResolvedValue(
+      createSnapshot({
+        prompt: {
+          kind: "integer",
+          step: "visible_articles.value",
+          title: "可见文章数",
+          message: "请输入当前窗口中同时可见的文章数量。",
+          default_value: 5,
+          min_value: 1,
+        },
+      }),
+    );
+    vi.mocked(respondToCalibrationTask).mockResolvedValue({ task_id: "calibration-1", accepted: true });
+
+    const { container, root } = await renderCalibrationPage();
+    const startButton = container.querySelector<HTMLButtonElement>('button[name="calibration-start-visible_articles"]');
+
+    if (!startButton) {
+      throw new Error("expected visible_articles calibration button");
+    }
+
+    await act(async () => {
+      startButton.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const input = container.querySelector<HTMLInputElement>('input[type="number"]');
+    const continueButton = container.querySelector<HTMLButtonElement>('button[name="calibration-prompt-continue"]');
+
+    if (!input || !continueButton) {
+      throw new Error("expected integer calibration controls");
+    }
+
+    await act(async () => {
+      const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+      if (!valueSetter) {
+        throw new Error("expected input value setter");
+      }
+      valueSetter.call(input, "");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(continueButton.disabled).toBe(true);
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
 });

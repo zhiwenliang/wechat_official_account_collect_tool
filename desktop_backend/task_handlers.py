@@ -154,10 +154,32 @@ class _CalibrationTaskWorker:
                 "min_value": min_value,
             },
         )
-        payload = self._await_response({"continue"})
-        value = int(payload.get("value", default_value))
-        self.task_registry.record_status(self.task_id, "recorded", f"已记录数值：{value}")
-        return value
+        while True:
+            payload = self._await_response({"continue"}, clear_prompt=False)
+            raw_value = payload.get("value")
+            try:
+                if raw_value is None or (isinstance(raw_value, str) and raw_value.strip() == ""):
+                    raise ValueError("missing value")
+                value = int(raw_value)
+            except (TypeError, ValueError):
+                self.task_registry.record_status(
+                    self.task_id,
+                    "invalid_response",
+                    f"请输入大于等于 {min_value} 的整数。",
+                )
+                continue
+
+            if value < min_value:
+                self.task_registry.record_status(
+                    self.task_id,
+                    "invalid_response",
+                    f"请输入大于等于 {min_value} 的整数。",
+                )
+                continue
+
+            self.task_registry.clear_prompt(self.task_id)
+            self.task_registry.record_status(self.task_id, "recorded", f"已记录数值：{value}")
+            return value
 
     def _request_confirm(self, step: str, title: str, message: str, confirm_label: str, reject_label: str) -> bool:
         self.task_registry.record_prompt(
@@ -177,7 +199,7 @@ class _CalibrationTaskWorker:
         self.task_registry.record_status(self.task_id, "confirmed", outcome)
         return accepted
 
-    def _await_response(self, allowed_responses: set[str]) -> dict[str, object]:
+    def _await_response(self, allowed_responses: set[str], *, clear_prompt: bool = True) -> dict[str, object]:
         while True:
             if self.should_stop():
                 raise CalibrationCancelled("cancelled")
@@ -197,7 +219,8 @@ class _CalibrationTaskWorker:
                 )
                 continue
 
-            self.task_registry.clear_prompt(self.task_id)
+            if clear_prompt:
+                self.task_registry.clear_prompt(self.task_id)
             return payload
 
 
