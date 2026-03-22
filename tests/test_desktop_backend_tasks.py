@@ -150,6 +150,18 @@ class BlockingScraper(FakeScraper):
         return super().scrape_article(url)
 
 
+class NonIdempotentStopScraper(BlockingScraper):
+    def __init__(self) -> None:
+        super().__init__()
+        self.stop_count = 0
+
+    def stop(self) -> None:
+        self.stop_count += 1
+        if self.stop_count > 1:
+            raise RuntimeError("stop called more than once")
+        super().stop()
+
+
 def post_json(url: str, payload: dict | None = None) -> dict:
     data = json.dumps(payload or {}).encode("utf-8")
     request = urllib.request.Request(
@@ -419,6 +431,38 @@ class DesktopBackendTaskTests(unittest.TestCase):
         self.assertTrue(holders[0].stop_called)
         self.assertEqual(events[-1]["type"], "stopped")
 
+    def test_scrape_stop_route_tolerates_non_idempotent_scraper_stop(self):
+        holders: list[NonIdempotentStopScraper] = []
+
+        def scraper_factory():
+            scraper = NonIdempotentStopScraper()
+            holders.append(scraper)
+            return scraper
+
+        server = create_server(
+            host="127.0.0.1",
+            port=0,
+            scraper_factory=scraper_factory,
+            scrape_db_factory=FakeScrapeDatabase,
+            file_store_factory=FakeFileStore,
+            pending_articles_provider=lambda: [(1, "https://example.com/article-1")],
+        )
+        server.start()
+        self.addCleanup(server.stop)
+
+        payload = post_json(f"http://{server.host}:{server.port}/tasks/scrape")
+        task_id = payload["task_id"]
+
+        stop_payload = post_json(f"http://{server.host}:{server.port}/tasks/{task_id}/stop")
+
+        self.assertEqual(stop_payload["task_id"], task_id)
+        self.assertTrue(stop_payload["stopping"])
+        self._wait_for_task_completion(server.task_registry, task_id)
+
+        events = server.task_registry.drain_events(task_id)
+        self.assertEqual(holders[0].stop_count, 1)
+        self.assertEqual(events[-1]["type"], "stopped")
+
     def test_task_route_returns_json_error_when_factory_fails(self):
         def bad_collector_factory():
             raise RuntimeError("collector unavailable")
@@ -441,6 +485,7 @@ class DesktopBackendTaskTests(unittest.TestCase):
         payload = json.loads(context.exception.read().decode("utf-8"))
         self.assertEqual(payload["status"], "error")
         self.assertIn("collector unavailable", payload["message"])
+        self.assertEqual(server.task_registry._tasks, {})
 
     def test_task_route_returns_json_error_for_invalid_json(self):
         server = create_server(host="127.0.0.1", port=0, collector_factory=FakeCollector)

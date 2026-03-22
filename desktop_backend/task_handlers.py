@@ -107,6 +107,21 @@ class WorkflowTaskHandlers:
         if hasattr(worker, "stop_checker"):
             worker.stop_checker = stop_checker
 
+        stop = getattr(worker, "stop", None)
+        if callable(stop):
+            stop_lock = threading.Lock()
+            stop_called = False
+
+            def stop_once():
+                nonlocal stop_called
+                with stop_lock:
+                    if stop_called:
+                        return None
+                    stop_called = True
+                return stop()
+
+            worker.stop = stop_once
+
         original_should_stop = getattr(worker, "should_stop", None)
         if callable(original_should_stop):
             worker.should_stop = lambda: bool(stop_checker() or original_should_stop())
