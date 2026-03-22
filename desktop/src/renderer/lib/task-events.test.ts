@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { mergeTaskEvents } from "./task-events";
+import { mergeTaskEvents, summarizeTaskSession } from "./task-events";
 
 describe("mergeTaskEvents", () => {
   it("appends only the new suffix when the backend snapshot contains the full history", () => {
@@ -42,5 +42,31 @@ describe("mergeTaskEvents", () => {
 
     expect(firstMerge).toEqual(firstSnapshot);
     expect(secondMerge).toEqual(secondSnapshot);
+  });
+
+  it("reports stopped snapshots as the terminal stopped state", () => {
+    expect(
+      summarizeTaskSession({
+        task_id: "collection-1",
+        task_type: "collection",
+        active: false,
+        stopping: true,
+        events: [
+          {
+            type: "started",
+            task_id: "collection-1",
+            task_type: "collection",
+          },
+          {
+            type: "stopped",
+            task_id: "collection-1",
+            reason: "stop requested",
+          },
+        ],
+      }),
+    ).toEqual({
+      title: "已停止",
+      description: "stop requested",
+    });
   });
 });

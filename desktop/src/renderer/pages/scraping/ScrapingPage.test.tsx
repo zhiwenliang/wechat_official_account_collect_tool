@@ -148,4 +148,67 @@ describe("ScrapingPage", () => {
       client.clear();
     });
   });
+
+  it("keeps the start button enabled after a failed restart from a completed task", async () => {
+    vi.useFakeTimers();
+    vi.mocked(getStatistics).mockResolvedValue({
+      total: 0,
+      pending: 0,
+      scraped: 0,
+      failed: 0,
+      empty_content: 0,
+      failed_urls: [],
+    });
+    const startTask = vi.mocked(startScrapeTask);
+    startTask
+      .mockResolvedValueOnce({ task_id: "scrape-1" })
+      .mockRejectedValueOnce(new Error("scraper unavailable"));
+    vi.mocked(getTaskSnapshot).mockResolvedValue(
+      {
+        task_id: "scrape-1",
+        task_type: "scrape",
+        active: false,
+        stopping: false,
+        events: [
+          {
+            type: "started",
+            task_id: "scrape-1",
+            task_type: "scrape",
+          },
+          {
+            type: "completed",
+            task_id: "scrape-1",
+            task_type: "scrape",
+          },
+        ],
+      },
+    );
+
+    const { container, root, client } = await renderScrapingPage();
+    const startButton = container.querySelector<HTMLButtonElement>('button[name="scrape-start"]');
+
+    if (!startButton) {
+      throw new Error("expected scrape start button");
+    }
+
+    await act(async () => {
+      startButton.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      startButton.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(startTask).toHaveBeenCalledTimes(2);
+    expect(startButton.disabled).toBe(false);
+
+    await act(async () => {
+      root.unmount();
+      client.clear();
+    });
+  });
 });

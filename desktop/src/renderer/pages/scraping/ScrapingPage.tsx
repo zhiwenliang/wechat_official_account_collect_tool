@@ -65,6 +65,7 @@ function useScrapingTaskWorkflow() {
     }
 
     setError(null);
+    setTaskId(null);
     setSnapshot(null);
     setEvents([]);
     setIsStarting(true);

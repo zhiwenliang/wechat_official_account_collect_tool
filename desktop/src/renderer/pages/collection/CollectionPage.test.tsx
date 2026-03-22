@@ -149,6 +149,57 @@ describe("CollectionPage", () => {
     });
   });
 
+  it("keeps the start button enabled after a failed restart from a completed task", async () => {
+    vi.useFakeTimers();
+    const startTask = vi.mocked(startCollectionTask);
+    startTask
+      .mockResolvedValueOnce({ task_id: "collection-1" })
+      .mockRejectedValueOnce(new Error("collector unavailable"));
+    vi.mocked(getTaskSnapshot).mockResolvedValue(
+      createSnapshot({
+        active: false,
+        events: [
+          {
+            type: "started",
+            task_id: "collection-1",
+            task_type: "collection",
+          },
+          {
+            type: "completed",
+            task_id: "collection-1",
+            task_type: "collection",
+          },
+        ],
+      }),
+    );
+
+    const { container, root } = await renderCollectionPage();
+    const startButton = container.querySelector<HTMLButtonElement>('button[name="collection-start"]');
+
+    if (!startButton) {
+      throw new Error("expected collection start button");
+    }
+
+    await act(async () => {
+      startButton.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      startButton.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(startTask).toHaveBeenCalledTimes(2);
+    expect(startButton.disabled).toBe(false);
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
+
   it("disables the stop button while the stop request is in flight", async () => {
     vi.useFakeTimers();
     vi.mocked(startCollectionTask).mockResolvedValue({ task_id: "collection-1" });

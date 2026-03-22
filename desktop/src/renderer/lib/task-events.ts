@@ -200,13 +200,6 @@ export function summarizeTaskSession(
     };
   }
 
-  if (options?.isStopping || snapshot?.stopping) {
-    return {
-      title: "停止中",
-      description: "停止请求已发送，正在等待任务结束。",
-    };
-  }
-
   if (!snapshot) {
     return {
       title: "未开始",
@@ -233,6 +226,13 @@ export function summarizeTaskSession(
     return {
       title: "已停止",
       description: lastTerminalEvent.reason || "任务已停止。",
+    };
+  }
+
+  if (options?.isStopping || snapshot?.stopping) {
+    return {
+      title: "停止中",
+      description: "停止请求已发送，正在等待任务结束。",
     };
   }
 
