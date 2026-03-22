@@ -1,8 +1,13 @@
-const assert = require("node:assert/strict");
-const React = require("react");
-const { renderToStaticMarkup } = require("react-dom/server");
-const { App } = require("./App.tsx");
+import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it } from "vitest";
 
-const markup = renderToStaticMarkup(React.createElement(App));
+import { App } from "./App";
 
-assert.match(markup, /微信公众号文章采集工具/);
+describe("App", () => {
+  it("renders the desktop shell heading", () => {
+    const markup = renderToStaticMarkup(React.createElement(App));
+
+    expect(markup).toContain("微信公众号文章采集工具");
+  });
+});

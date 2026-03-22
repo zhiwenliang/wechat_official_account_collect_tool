@@ -1,0 +1,4 @@
+dist/
+dist-electron/
+playwright-report/
+test-results/
