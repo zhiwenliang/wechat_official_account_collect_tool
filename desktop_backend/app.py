@@ -5,6 +5,12 @@ from typing import Any
 
 from .runtime import DEFAULT_HOST, DEFAULT_PORT
 from .server import DesktopBackendServer
+from .import_export_handlers import export_data_bundle_handler, import_database_handler
+from .query_handlers import (
+    delete_selected_articles_handler,
+    retry_empty_content_articles_handler,
+    retry_failed_articles_handler,
+)
 from .task_handlers import WorkflowTaskHandlers
 from .task_registry import TaskRegistry
 
@@ -33,11 +39,56 @@ def create_server(
         host=host,
         port=port,
         task_registry=task_registry,
-        post_handler=lambda path, _query, _body: _handle_post(path, task_handlers),
+        post_handler=lambda path, _query, body: _handle_post(path, body, task_handlers),
     )
 
 
-def _handle_post(path: str, task_handlers: WorkflowTaskHandlers) -> tuple[int, dict[str, Any]] | None:
+def _handle_post(
+    path: str,
+    body: Any,
+    task_handlers: WorkflowTaskHandlers,
+) -> tuple[int, dict[str, Any]] | None:
+    payload = body if isinstance(body, dict) else {}
+
+    if path == "/api/articles/retry-failed":
+        result = retry_failed_articles_handler()
+        return 200, {"status": "ok", **result}
+
+    if path == "/api/articles/retry-empty-content":
+        result = retry_empty_content_articles_handler()
+        return 200, {"status": "ok", **result}
+
+    if path == "/api/articles/delete":
+        article_ids = payload.get("article_ids")
+        if not isinstance(article_ids, list) or not article_ids:
+            return 400, {"status": "error", "message": "article_ids must be a non-empty list"}
+        try:
+            result = delete_selected_articles_handler(article_ids=article_ids)
+        except (TypeError, ValueError) as exc:
+            return 400, {"status": "error", "message": str(exc)}
+        return 200, {"status": "ok", **result}
+
+    if path == "/api/data/export":
+        output_path = payload.get("output_path")
+        if not output_path:
+            return 400, {"status": "error", "message": "output_path is required"}
+        result = export_data_bundle_handler(
+            output_path=output_path,
+            db_path=payload.get("db_path"),
+            articles_dir=payload.get("articles_dir"),
+        )
+        return 200, {"status": "ok", **result}
+
+    if path == "/api/data/import":
+        source_db_path = payload.get("source_db_path")
+        if not source_db_path:
+            return 400, {"status": "error", "message": "source_db_path is required"}
+        result = import_database_handler(
+            source_db_path=source_db_path,
+            target_db_path=payload.get("target_db_path"),
+        )
+        return 200, {"status": "ok", **result}
+
     if path == "/tasks/collection":
         task_id = task_handlers.start_collection_task()
         return 202, {"task_id": task_id}
