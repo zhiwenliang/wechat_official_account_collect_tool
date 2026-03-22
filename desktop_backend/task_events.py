@@ -12,7 +12,6 @@ class TaskEvent(TypedDict, total=False):
     reason: str
     current: int
     total: int
-    error: str
 
 
 def _normalize_text(value: object) -> str:

@@ -60,6 +60,34 @@ class DesktopBackendTaskTests(unittest.TestCase):
         self.assertFalse(registry.is_active(task_id))
         self.assertIsNone(registry.get_task(task_id))
 
+    def test_task_registry_stopped_event_finalizes_task(self):
+        registry = TaskRegistry()
+        task_id = registry.start_task("collection")
+
+        registry.record_stopped(task_id, "user requested")
+
+        self.assertFalse(registry.is_active(task_id))
+        self.assertIsNone(registry.get_task(task_id))
+        self.assertEqual(
+            [event["type"] for event in registry.drain_events(task_id)],
+            ["started", "stopped"],
+        )
+
+    def test_get_task_returns_copy_of_internal_state(self):
+        registry = TaskRegistry()
+        task_id = registry.start_task("collection")
+
+        snapshot = registry.get_task(task_id)
+
+        self.assertIsNotNone(snapshot)
+        snapshot.stopping = True
+        snapshot.events.append({"type": "log", "task_id": task_id, "message": "mutated"})
+
+        fresh = registry.get_task(task_id)
+        self.assertIsNotNone(fresh)
+        self.assertFalse(fresh.stopping)
+        self.assertEqual([event["type"] for event in fresh.events], ["started"])
+
     def test_event_builders_normalize_payloads(self):
         self.assertEqual(
             build_started_event(task_id="task-1", task_type="collection"),
