@@ -12,6 +12,8 @@ class TaskEvent(TypedDict, total=False):
     reason: str
     current: int
     total: int
+    success: int
+    failed: int
 
 
 def _normalize_text(value: object) -> str:
@@ -38,14 +40,27 @@ def build_log_event(*, task_id: str, message: object) -> TaskEvent:
     }
 
 
-def build_progress_event(*, task_id: str, current: object, total: object, message: object = "") -> TaskEvent:
-    return {
+def build_progress_event(
+    *,
+    task_id: str,
+    current: object,
+    total: object,
+    message: object = "",
+    success: object | None = None,
+    failed: object | None = None,
+) -> TaskEvent:
+    event: TaskEvent = {
         "type": "progress",
         "task_id": _normalize_text(task_id),
         "current": _normalize_int(current),
         "total": _normalize_int(total),
         "message": _normalize_text(message),
     }
+    if success is not None:
+        event["success"] = _normalize_int(success)
+    if failed is not None:
+        event["failed"] = _normalize_int(failed)
+    return event
 
 
 def build_status_event(*, task_id: str, status: object, message: object = "") -> TaskEvent:

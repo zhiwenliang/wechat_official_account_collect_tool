@@ -46,10 +46,26 @@ class TaskRegistry:
     def record_log(self, task_id: str, message: object) -> TaskEvent:
         return self._append_event(task_id, build_log_event(task_id=task_id, message=message))
 
-    def record_progress(self, task_id: str, current: object, total: object, message: object = "") -> TaskEvent:
+    def record_progress(
+        self,
+        task_id: str,
+        current: object,
+        total: object,
+        message: object = "",
+        *,
+        success: object | None = None,
+        failed: object | None = None,
+    ) -> TaskEvent:
         return self._append_event(
             task_id,
-            build_progress_event(task_id=task_id, current=current, total=total, message=message),
+            build_progress_event(
+                task_id=task_id,
+                current=current,
+                total=total,
+                message=message,
+                success=success,
+                failed=failed,
+            ),
         )
 
     def record_status(self, task_id: str, status: object, message: object = "") -> TaskEvent:

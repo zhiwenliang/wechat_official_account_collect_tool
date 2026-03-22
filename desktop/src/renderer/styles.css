@@ -409,6 +409,38 @@ a {
   color: #94a3b8;
 }
 
+.task-counter-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.task-counter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.task-counter-card {
+  padding: 14px;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.78);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.task-counter-card__label {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 0.86rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.task-counter-card__value {
+  display: block;
+  margin-top: 8px;
+  font-size: 1.4rem;
+}
+
 @media (max-width: 900px) {
   .shell {
     padding: 24px;

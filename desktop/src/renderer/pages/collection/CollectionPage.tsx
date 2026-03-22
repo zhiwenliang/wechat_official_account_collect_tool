@@ -4,7 +4,7 @@ import { TaskLogPanel } from "../../components/TaskLogPanel";
 import { TaskProgressPanel } from "../../components/TaskProgressPanel";
 import { getTaskSnapshot, startCollectionTask, stopTask } from "../../lib/api";
 import type { TaskEvent, TaskSnapshotPayload } from "../../lib/task-events";
-import { summarizeTaskProgress, summarizeTaskSession } from "../../lib/task-events";
+import { mergeTaskEvents, summarizeTaskProgress, summarizeTaskSession } from "../../lib/task-events";
 const POLL_INTERVAL_MS = 1000;
 
 function useCollectionTaskWorkflow() {
@@ -31,7 +31,7 @@ function useCollectionTaskWorkflow() {
         }
 
         setSnapshot(nextSnapshot);
-        setEvents((current) => current.concat(nextSnapshot.events));
+        setEvents((current) => mergeTaskEvents(current, nextSnapshot.events));
 
         if (!nextSnapshot.active && intervalId !== undefined) {
           window.clearInterval(intervalId);

@@ -97,67 +97,34 @@ describe("CollectionPage", () => {
     });
   });
 
-  it("appends task events into the progress and log panels as snapshots arrive", async () => {
+  it("renders task progress and logs from the initial snapshot", async () => {
     vi.useFakeTimers();
     vi.mocked(startCollectionTask).mockResolvedValue({ task_id: "collection-1" });
 
-    let callCount = 0;
-    vi.mocked(getTaskSnapshot).mockImplementation(async () => {
-      callCount += 1;
-      if (callCount === 1) {
-        return createSnapshot({
-          events: [
-            {
-              type: "started",
-              task_id: "collection-1",
-              task_type: "collection",
-            },
-            {
-              type: "log",
-              task_id: "collection-1",
-              message: "开始采集链接",
-            },
-            {
-              type: "progress",
-              task_id: "collection-1",
-              current: 1,
-              total: 3,
-              message: "已采集 1/3 篇",
-            },
-          ],
-        });
-      }
-
-      if (callCount === 2) {
-        return createSnapshot({
-          events: [
-            {
-              type: "log",
-              task_id: "collection-1",
-              message: "已保存: https://example.com/1",
-            },
-            {
-              type: "progress",
-              task_id: "collection-1",
-              current: 2,
-              total: 3,
-              message: "已采集 2/3 篇",
-            },
-          ],
-        });
-      }
-
-      return createSnapshot({
-        active: false,
+    vi.mocked(getTaskSnapshot).mockResolvedValue(
+      createSnapshot({
+        active: true,
         events: [
           {
-            type: "completed",
+            type: "started",
             task_id: "collection-1",
             task_type: "collection",
           },
+          {
+            type: "log",
+            task_id: "collection-1",
+            message: "开始采集链接",
+          },
+          {
+            type: "progress",
+            task_id: "collection-1",
+            current: 1,
+            total: 3,
+            message: "已采集 1/3 篇",
+          },
         ],
-      });
-    });
+      }),
+    );
 
     const { container, root } = await renderCollectionPage();
     const startButton = container.querySelector<HTMLButtonElement>('button[name="collection-start"]');
@@ -175,15 +142,7 @@ describe("CollectionPage", () => {
     expect(container.textContent).toContain("开始采集链接");
     expect(container.textContent).toContain("任务进度");
     expect(container.textContent).toContain("1 / 3");
-
-    await act(async () => {
-      vi.advanceTimersByTime(2000);
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    expect(container.textContent).toContain("已保存: https://example.com/1");
-    expect(container.textContent).toContain("2 / 3");
+    expect(container.querySelectorAll(".task-log__item")).toHaveLength(3);
 
     await act(async () => {
       root.unmount();

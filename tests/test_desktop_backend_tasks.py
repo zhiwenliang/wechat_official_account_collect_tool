@@ -163,6 +163,18 @@ class NonIdempotentStopScraper(BlockingScraper):
         super().stop()
 
 
+class MixedResultScraper(FakeScraper):
+    def __init__(self) -> None:
+        super().__init__()
+        self.calls = 0
+
+    def scrape_article(self, url: str):
+        self.calls += 1
+        if self.calls == 1:
+            return super().scrape_article(url)
+        return None
+
+
 def post_json(url: str, payload: dict | None = None) -> dict:
     data = json.dumps(payload or {}).encode("utf-8")
     request = urllib.request.Request(
@@ -399,6 +411,32 @@ class DesktopBackendTaskTests(unittest.TestCase):
         self.assertEqual(progress_events[0]["current"], 1)
         self.assertEqual(progress_events[0]["total"], 1)
         self.assertEqual(progress_events[0]["message"], "已处理 1/1 篇")
+
+    def test_scrape_task_route_includes_success_and_failed_counts_in_progress_events(self):
+        server = create_server(
+            host="127.0.0.1",
+            port=0,
+            scraper_factory=MixedResultScraper,
+            scrape_db_factory=FakeScrapeDatabase,
+            file_store_factory=FakeFileStore,
+            pending_articles_provider=lambda: [
+                (1, "https://example.com/article-1"),
+                (2, "https://example.com/article-2"),
+            ],
+        )
+        server.start()
+        self.addCleanup(server.stop)
+
+        payload = post_json(f"http://{server.host}:{server.port}/tasks/scrape")
+        task_id = payload["task_id"]
+
+        self._wait_for_task_completion(server.task_registry, task_id)
+        events = server.task_registry.drain_events(task_id)
+        progress_events = [event for event in events if event["type"] == "progress"]
+
+        self.assertEqual(len(progress_events), 2)
+        self.assertEqual(progress_events[-1]["success"], 1)
+        self.assertEqual(progress_events[-1]["failed"], 1)
 
     def test_stop_route_honors_workflow_stop_checker(self):
         holders: list[BlockingCollector] = []

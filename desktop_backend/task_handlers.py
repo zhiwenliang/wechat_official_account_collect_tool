@@ -151,11 +151,13 @@ class WorkflowTaskHandlers:
             result = run_collection_workflow(
                 collector,
                 log=lambda message: self.task_registry.record_log(task_id, message),
-                progress=lambda current, total, message="", **_kwargs: self.task_registry.record_progress(
+                progress=lambda current, total, message="", **kwargs: self.task_registry.record_progress(
                     task_id,
                     current,
                     total,
                     message,
+                    success=kwargs.get("success"),
+                    failed=kwargs.get("failed"),
                 ),
                 stop_checker=lambda: self.task_registry.should_stop(task_id),
             )
@@ -179,11 +181,13 @@ class WorkflowTaskHandlers:
                 scraper=scraper,
                 pending_articles=pending_articles,
                 log=lambda message: self.task_registry.record_log(task_id, message),
-                progress=lambda current, total, message="", **_kwargs: self.task_registry.record_progress(
+                progress=lambda current, total, message="", **kwargs: self.task_registry.record_progress(
                     task_id,
                     current,
                     total,
                     message,
+                    success=kwargs.get("success"),
+                    failed=kwargs.get("failed"),
                 ),
                 stop_checker=lambda: self.task_registry.should_stop(task_id),
             )

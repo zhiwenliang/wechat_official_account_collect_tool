@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 import { TaskLogPanel } from "../../components/TaskLogPanel";
 import { TaskProgressPanel } from "../../components/TaskProgressPanel";
-import { getTaskSnapshot, startScrapeTask, stopTask } from "../../lib/api";
+import { getStatistics, getTaskSnapshot, startScrapeTask, stopTask } from "../../lib/api";
 import type { TaskEvent, TaskSnapshotPayload } from "../../lib/task-events";
-import { summarizeTaskProgress, summarizeTaskSession } from "../../lib/task-events";
+import { mergeTaskEvents, summarizeTaskProgress, summarizeTaskSession } from "../../lib/task-events";
 const POLL_INTERVAL_MS = 1000;
 
 function useScrapingTaskWorkflow() {
@@ -31,7 +32,7 @@ function useScrapingTaskWorkflow() {
         }
 
         setSnapshot(nextSnapshot);
-        setEvents((current) => current.concat(nextSnapshot.events));
+        setEvents((current) => mergeTaskEvents(current, nextSnapshot.events));
 
         if (!nextSnapshot.active && intervalId !== undefined) {
           window.clearInterval(intervalId);
@@ -120,6 +121,18 @@ function useScrapingTaskWorkflow() {
 export function ScrapingPage() {
   const { taskId, events, summary, progress, error, start, stop, stopDisabled, startDisabled, snapshot } =
     useScrapingTaskWorkflow();
+  const statisticsQuery = useQuery({
+    queryKey: ["scraping-statistics"],
+    queryFn: getStatistics,
+  });
+  const statistics = statisticsQuery.data ?? {
+    total: 0,
+    pending: 0,
+    scraped: 0,
+    failed: 0,
+    empty_content: 0,
+    failed_urls: [],
+  };
 
   return (
     <section className="shell__hero task-page" aria-label="Scraping">
@@ -166,6 +179,27 @@ export function ScrapingPage() {
           {error ? <p className="task-status-error">{error}</p> : null}
         </section>
       </div>
+
+      <section className="task-panel task-counter-panel" aria-label="抓取统计">
+        <div className="task-panel__header">
+          <h3>抓取统计</h3>
+          <p>与 Tkinter 面板一致</p>
+        </div>
+        <div className="task-counter-grid">
+          <article className="task-counter-card">
+            <p className="task-counter-card__label">待抓取文章: {statistics.pending} 篇</p>
+          </article>
+          <article className="task-counter-card">
+            <p className="task-counter-card__label">无内容文章: {statistics.empty_content} 篇</p>
+          </article>
+          <article className="task-counter-card">
+            <p className="task-counter-card__label">成功: {progress.success ?? 0}</p>
+          </article>
+          <article className="task-counter-card">
+            <p className="task-counter-card__label">失败: {progress.failed ?? 0}</p>
+          </article>
+        </div>
+      </section>
 
       <div className="task-grid">
         <TaskProgressPanel status={summary.title} current={progress.current} total={progress.total} message={progress.message} />

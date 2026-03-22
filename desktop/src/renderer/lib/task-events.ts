@@ -38,6 +38,8 @@ export type TaskProgressEvent = {
   current: number;
   total: number;
   message: string;
+  success?: number;
+  failed?: number;
 };
 
 export type TaskStatusEvent = {
@@ -95,6 +97,8 @@ export type TaskProgressSummary = {
   message: string;
   percent: number;
   hasProgress: boolean;
+  success: number | null;
+  failed: number | null;
 };
 
 export type TaskSessionSummary = {
@@ -141,6 +145,8 @@ export function summarizeTaskProgress(events: TaskEvent[]): TaskProgressSummary 
       message: "",
       percent: 0,
       hasProgress: false,
+      success: null,
+      failed: null,
     };
   }
 
@@ -154,7 +160,30 @@ export function summarizeTaskProgress(events: TaskEvent[]): TaskProgressSummary 
     message: lastProgressEvent.message,
     percent,
     hasProgress: true,
+    success: typeof lastProgressEvent.success === "number" ? lastProgressEvent.success : null,
+    failed: typeof lastProgressEvent.failed === "number" ? lastProgressEvent.failed : null,
   };
+}
+
+function taskEventsMatch(left: TaskEvent, right: TaskEvent) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+export function mergeTaskEvents(existing: TaskEvent[], snapshotEvents: TaskEvent[]) {
+  if (existing.length === 0) {
+    return [...snapshotEvents];
+  }
+
+  if (snapshotEvents.length < existing.length) {
+    return [...snapshotEvents];
+  }
+
+  const matchesPrefix = existing.every((event, index) => taskEventsMatch(event, snapshotEvents[index]));
+  if (!matchesPrefix) {
+    return [...snapshotEvents];
+  }
+
+  return existing.concat(snapshotEvents.slice(existing.length));
 }
 
 export function summarizeTaskSession(
