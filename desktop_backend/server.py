@@ -30,12 +30,14 @@ class DesktopBackendServer:
         port: int = DEFAULT_PORT,
         db: Database | None = None,
         task_registry: Any | None = None,
+        get_handler: Callable[[str, dict[str, list[str]]], tuple[int, Any] | None] | None = None,
         post_handler: Callable[[str, dict[str, list[str]], Any], tuple[int, Any] | None] | None = None,
     ) -> None:
         self.host = host
         self.port = select_runtime_port(host=host, preferred_port=port)
         self._db = db
         self.task_registry = task_registry
+        self._get_handler = get_handler
         self._post_handler = post_handler
         self._httpd: ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
@@ -132,6 +134,17 @@ class DesktopBackendServer:
                 },
             )
             return
+
+        if handler.command == "GET" and self._get_handler is not None:
+            try:
+                result = self._get_handler(path, query)
+            except Exception as exc:
+                self._write_json(handler, 500, {"status": "error", "message": str(exc)})
+                return
+            if result is not None:
+                status_code, payload = result
+                self._write_json(handler, status_code, payload)
+                return
 
         if handler.command == "POST" and self._post_handler is not None:
             try:

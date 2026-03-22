@@ -1,4 +1,4 @@
-import type { BackendStatus } from "./task-events";
+import type { BackendStatus, TaskSnapshotPayload } from "./task-events";
 
 export interface DesktopBridge {
   getBackendStatus: () => Promise<BackendStatus>;
@@ -94,4 +94,49 @@ export function getArticles(query: ArticlesQuery) {
     page_size: String(query.pageSize),
   });
   return requestJson<ArticlesPayload>(`/api/articles?${params.toString()}`);
+}
+
+export type TaskStartPayload = {
+  task_id: string;
+};
+
+export type TaskStopPayload = {
+  task_id: string;
+  stopping: boolean;
+};
+
+export type TaskSnapshotResponse = TaskSnapshotPayload;
+
+export function startCollectionTask() {
+  return requestJson<TaskStartPayload>("/tasks/collection", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: "{}",
+  });
+}
+
+export function startScrapeTask() {
+  return requestJson<TaskStartPayload>("/tasks/scrape", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: "{}",
+  });
+}
+
+export function stopTask(taskId: string) {
+  return requestJson<TaskStopPayload>(`/tasks/${taskId}/stop`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: "{}",
+  });
+}
+
+export function getTaskSnapshot(taskId: string) {
+  return requestJson<TaskSnapshotResponse>(`/tasks/${taskId}`);
 }

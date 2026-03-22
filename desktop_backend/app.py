@@ -39,8 +39,33 @@ def create_server(
         host=host,
         port=port,
         task_registry=task_registry,
+        get_handler=lambda path, _query: _handle_get(path, task_registry),
         post_handler=lambda path, _query, body: _handle_post(path, body, task_handlers),
     )
+
+
+def _handle_get(
+    path: str,
+    task_registry: TaskRegistry,
+) -> tuple[int, dict[str, Any]] | None:
+    if not path.startswith("/tasks/") or path.count("/") != 2:
+        return None
+
+    task_id = path[len("/tasks/") :].strip("/")
+    if not task_id:
+        return 404, {"status": "error", "message": "task not found", "task_id": task_id}
+
+    snapshot = task_registry.snapshot_task(task_id)
+    if snapshot is None:
+        return 404, {"status": "error", "message": "task not found", "task_id": task_id}
+
+    return 200, {
+        "task_id": snapshot.task_id,
+        "task_type": snapshot.task_type,
+        "active": snapshot.active,
+        "stopping": snapshot.stopping,
+        "events": snapshot.events,
+    }
 
 
 def _handle_post(

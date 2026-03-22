@@ -121,6 +121,21 @@ class TaskRegistry:
                 events=list(state.events),
             )
 
+    def snapshot_task(self, task_id: str) -> _TaskState | None:
+        with self._lock:
+            state = self._tasks.get(task_id)
+            if state is None:
+                state = self._finished_tasks.get(task_id)
+            if state is None:
+                return None
+            return _TaskState(
+                task_id=state.task_id,
+                task_type=state.task_type,
+                active=state.active,
+                stopping=state.stopping,
+                events=list(state.events),
+            )
+
     def drain_events(self, task_id: str) -> list[TaskEvent]:
         with self._lock:
             state = self._tasks.get(task_id)

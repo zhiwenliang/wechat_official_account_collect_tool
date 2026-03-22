@@ -5,6 +5,8 @@ import { getBackendStatus } from "./lib/api";
 import type { BackendStatus } from "./lib/task-events";
 import { ArticlesPage } from "./pages/articles/ArticlesPage";
 import { DashboardPage } from "./pages/dashboard/DashboardPage";
+import { CollectionPage } from "./pages/collection/CollectionPage";
+import { ScrapingPage } from "./pages/scraping/ScrapingPage";
 
 const INITIAL_STATUS: BackendStatus = {
   state: "starting",
@@ -105,6 +107,12 @@ export function App() {
             </div>
             <div id="articles">
               <ArticlesPage />
+            </div>
+            <div id="collect">
+              <CollectionPage />
+            </div>
+            <div id="scrape">
+              <ScrapingPage />
             </div>
           </>
         ) : (

@@ -11,6 +11,14 @@ vi.mock("./pages/articles/ArticlesPage", () => ({
   ArticlesPage: () => <div>Articles stub</div>,
 }));
 
+vi.mock("./pages/collection/CollectionPage", () => ({
+  CollectionPage: () => <div>Collection stub</div>,
+}));
+
+vi.mock("./pages/scraping/ScrapingPage", () => ({
+  ScrapingPage: () => <div>Scraping stub</div>,
+}));
+
 import { App, renderBackendCopy } from "./App";
 
 async function renderApp() {
@@ -148,6 +156,8 @@ describe("renderBackendCopy", () => {
     const { container, root } = await renderApp();
     expect(container.textContent).not.toContain("Dashboard stub");
     expect(container.textContent).not.toContain("Articles stub");
+    expect(container.textContent).not.toContain("Collection stub");
+    expect(container.textContent).not.toContain("Scraping stub");
 
     await act(async () => {
       vi.advanceTimersByTime(3000);
@@ -156,6 +166,8 @@ describe("renderBackendCopy", () => {
 
     expect(container.textContent).toContain("Dashboard stub");
     expect(container.textContent).toContain("Articles stub");
+    expect(container.textContent).toContain("Collection stub");
+    expect(container.textContent).toContain("Scraping stub");
 
     await act(async () => {
       root.unmount();

@@ -235,6 +235,32 @@ class DesktopBackendTaskTests(unittest.TestCase):
             ["started", "stopped"],
         )
 
+    def test_task_snapshot_route_returns_current_events_and_state(self):
+        holders: list[BlockingCollector] = []
+
+        def collector_factory():
+            collector = BlockingCollector()
+            holders.append(collector)
+            return collector
+
+        server = create_server(host="127.0.0.1", port=0, collector_factory=collector_factory)
+        server.start()
+        self.addCleanup(server.stop)
+
+        payload = post_json(f"http://{server.host}:{server.port}/tasks/collection")
+        task_id = payload["task_id"]
+
+        snapshot = self._wait_for_json(f"http://{server.host}:{server.port}/tasks/{task_id}")
+
+        self.assertEqual(snapshot["task_id"], task_id)
+        self.assertEqual(snapshot["task_type"], "collection")
+        self.assertTrue(snapshot["active"])
+        self.assertFalse(snapshot["stopping"])
+        self.assertGreaterEqual(len(snapshot["events"]), 1)
+        self.assertEqual(snapshot["events"][0]["type"], "started")
+        self.assertTrue(any(event["type"] == "log" for event in snapshot["events"]))
+        self.assertTrue(holders[0].stop_observed is False)
+
     def test_get_task_returns_copy_of_internal_state(self):
         registry = TaskRegistry()
         task_id = registry.start_task("collection")
@@ -542,6 +568,18 @@ class DesktopBackendTaskTests(unittest.TestCase):
             if time.time() >= deadline:
                 self.fail(f"task {task_id} did not complete in time")
             time.sleep(0.02)
+
+    def _wait_for_json(self, url: str):
+        deadline = time.time() + 5
+
+        while True:
+            try:
+                with urllib.request.urlopen(url, timeout=1) as response:
+                    return json.loads(response.read().decode("utf-8"))
+            except OSError:
+                if time.time() >= deadline:
+                    raise
+                time.sleep(0.05)
 
 
 if __name__ == "__main__":
