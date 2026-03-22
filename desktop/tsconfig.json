@@ -12,5 +12,5 @@
     "allowImportingTsExtensions": true,
     "types": ["node"]
   },
-  "include": ["electron", "src", "vite.config.ts"]
+  "include": ["electron", "src", "tests", "vite.config.ts"]
 }
