@@ -11,6 +11,7 @@ from storage.file_store import FileStore
 
 LogFn = Callable[[str], None]
 ProgressFn = Callable[..., None]
+StopChecker = Callable[[], bool]
 
 
 @dataclass
@@ -43,6 +44,12 @@ def _emit_progress(
         progress(current, total, message, **kwargs)
 
 
+def _should_stop(actor, stop_checker: Optional[StopChecker] = None) -> bool:
+    if stop_checker and stop_checker():
+        return True
+    return bool(actor.should_stop())
+
+
 def _remaining_visible_article_click_positions(collector, remaining_count: int) -> list[int]:
     """Return click positions for the remaining visible rows on the last screen."""
     article_list = collector.config["windows"]["article_list"]
@@ -55,7 +62,13 @@ def _remaining_visible_article_click_positions(collector, remaining_count: int) 
     return [base_y + (index * row_height) for index in range(remaining_count)]
 
 
-def run_collection_workflow(collector, *, log: LogFn = print, progress: Optional[ProgressFn] = None):
+def run_collection_workflow(
+    collector,
+    *,
+    log: LogFn = print,
+    progress: Optional[ProgressFn] = None,
+    stop_checker: Optional[StopChecker] = None,
+):
     """Run the shared Stage 1 collection workflow."""
     start_time = datetime.now()
 
@@ -87,20 +100,20 @@ def run_collection_workflow(collector, *, log: LogFn = print, progress: Optional
     log(f"开始采集 (最多{max_articles}篇)\n")
 
     while article_count < max_articles:
-        if collector.should_stop():
+        if _should_stop(collector, stop_checker):
             stopped = True
             break
 
         log(f"\n[{article_count + 1}] 处理中...")
 
         if not collector.click_article(current_click_y):
-            stopped = collector.should_stop()
+            stopped = _should_stop(collector, stop_checker)
             if stopped:
                 break
 
         link = collector.collect_link()
 
-        if collector.should_stop():
+        if _should_stop(collector, stop_checker):
             stopped = True
             break
 
@@ -116,7 +129,7 @@ def run_collection_workflow(collector, *, log: LogFn = print, progress: Optional
                 if not has_refreshed:
                     log(f"\n检测到连续{duplicate_count}次相同链接，尝试刷新页面...")
                     if not collector.refresh_scroll():
-                        stopped = collector.should_stop()
+                        stopped = _should_stop(collector, stop_checker)
                         if stopped:
                             break
                     has_refreshed = True
@@ -135,7 +148,7 @@ def run_collection_workflow(collector, *, log: LogFn = print, progress: Optional
                 if article_count % 30 == 0:
                     log(f"\n已采集{article_count}篇，清理标签...")
                     if not collector.close_tabs():
-                        stopped = collector.should_stop()
+                        stopped = _should_stop(collector, stop_checker)
                         if stopped:
                             break
         else:
@@ -147,7 +160,7 @@ def run_collection_workflow(collector, *, log: LogFn = print, progress: Optional
                 break
 
         if not collector.scroll_article():
-            stopped = collector.should_stop()
+            stopped = _should_stop(collector, stop_checker)
             if stopped:
                 break
 
@@ -156,19 +169,19 @@ def run_collection_workflow(collector, *, log: LogFn = print, progress: Optional
         log(f"\n处理剩余 {remaining_count} 篇可见文章（不滚动）\n")
 
         for i, click_y in enumerate(_remaining_visible_article_click_positions(collector, remaining_count)):
-            if article_count >= max_articles or collector.should_stop():
-                stopped = collector.should_stop()
+            if article_count >= max_articles or _should_stop(collector, stop_checker):
+                stopped = _should_stop(collector, stop_checker)
                 break
 
             log(f"\n[剩余{i+1}/{remaining_count}] 处理中...")
 
             if not collector.click_article(click_y):
-                stopped = collector.should_stop()
+                stopped = _should_stop(collector, stop_checker)
                 if stopped:
                     break
 
             link = collector.collect_link()
-            if collector.should_stop():
+            if _should_stop(collector, stop_checker):
                 stopped = True
                 break
 
@@ -208,6 +221,7 @@ def run_scrape_workflow(
     pending_articles=None,
     log: LogFn = print,
     progress: Optional[ProgressFn] = None,
+    stop_checker: Optional[StopChecker] = None,
 ):
     """Run the shared Stage 2 scraping workflow."""
     db = db or Database()
@@ -242,7 +256,7 @@ def run_scrape_workflow(
 
     try:
         for idx, (article_id, url) in enumerate(pending, 1):
-            if scraper.should_stop():
+            if _should_stop(scraper, stop_checker):
                 stopped = True
                 break
 
@@ -256,7 +270,7 @@ def run_scrape_workflow(
 
             article_data = scraper.scrape_article(url)
 
-            if scraper.should_stop():
+            if _should_stop(scraper, stop_checker):
                 stopped = True
                 break
 

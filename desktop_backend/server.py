@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import parse_qs, urlsplit
 
 from desktop_backend.query_handlers import (
@@ -29,10 +29,14 @@ class DesktopBackendServer:
         host: str = DEFAULT_HOST,
         port: int = DEFAULT_PORT,
         db: Database | None = None,
+        task_registry: Any | None = None,
+        post_handler: Callable[[str, dict[str, list[str]], Any], tuple[int, Any] | None] | None = None,
     ) -> None:
         self.host = host
         self.port = select_runtime_port(host=host, preferred_port=port)
         self._db = db
+        self.task_registry = task_registry
+        self._post_handler = post_handler
         self._httpd: ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
         self._routes: dict[tuple[str, str], Any] = {}
@@ -100,6 +104,9 @@ class DesktopBackendServer:
             def do_GET(self) -> None:  # noqa: N802
                 server._handle_request(self)
 
+            def do_POST(self) -> None:  # noqa: N802
+                server._handle_request(self)
+
             def log_message(self, format: str, *args: Any) -> None:  # noqa: A003
                 return
 
@@ -109,6 +116,7 @@ class DesktopBackendServer:
         parsed = urlsplit(handler.path)
         path = parsed.path
         query = parse_qs(parsed.query)
+        body = self._read_json_body(handler) if handler.command == "POST" else None
 
         if path == "/health":
             self._write_json(
@@ -120,6 +128,13 @@ class DesktopBackendServer:
                 },
             )
             return
+
+        if handler.command == "POST" and self._post_handler is not None:
+            result = self._post_handler(path, query, body)
+            if result is not None:
+                status_code, payload = result
+                self._write_json(handler, status_code, payload)
+                return
 
         route = self._routes.get((handler.command, path))
         if route is None:
@@ -136,6 +151,15 @@ class DesktopBackendServer:
         handler.send_header("Content-Length", str(len(body)))
         handler.end_headers()
         handler.wfile.write(body)
+
+    def _read_json_body(self, handler: BaseHTTPRequestHandler) -> Any:
+        content_length = int(handler.headers.get("Content-Length", "0") or "0")
+        if content_length <= 0:
+            return {}
+        raw_body = handler.rfile.read(content_length)
+        if not raw_body:
+            return {}
+        return json.loads(raw_body.decode("utf-8"))
 
 
 def _parse_int(query: dict[str, list[str]], key: str, default: int) -> int:

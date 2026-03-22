@@ -1,4 +1,9 @@
+import json
+import time
 import unittest
+import urllib.request
+
+from desktop_backend.app import create_server
 
 from desktop_backend.task_events import (
     build_cancelled_event,
@@ -11,6 +16,128 @@ from desktop_backend.task_events import (
     build_stopped_event,
 )
 from desktop_backend.task_registry import TaskRegistry
+
+
+class FakeCollectionDatabase:
+    db_path = "fake-articles.db"
+
+    def __init__(self) -> None:
+        self.saved_links: list[str] = []
+
+    def add_article(self, link: str):
+        self.saved_links.append(link)
+        return len(self.saved_links)
+
+
+class FakeCollector:
+    def __init__(self) -> None:
+        self.config = {
+            "windows": {
+                "article_list": {
+                    "article_click_area": {"y": 100},
+                    "visible_articles": 0,
+                }
+            },
+            "collection": {
+                "max_articles": 1,
+            },
+        }
+        self.db = FakeCollectionDatabase()
+        self.collected_links = set()
+        self.recent_links = []
+
+    def should_stop(self) -> bool:
+        return False
+
+    def click_article(self, _click_y: int) -> bool:
+        return True
+
+    def collect_link(self) -> str:
+        return "https://example.com/collected"
+
+    def _check_duplicate_count(self) -> int:
+        return 0
+
+    def refresh_scroll(self) -> bool:
+        return True
+
+    def close_tabs(self) -> bool:
+        return True
+
+    def scroll_article(self) -> bool:
+        return True
+
+
+class BlockingCollector(FakeCollector):
+    def __init__(self) -> None:
+        super().__init__()
+        self.stop_observed = False
+
+    def click_article(self, _click_y: int) -> bool:
+        deadline = time.time() + 2
+        while time.time() < deadline:
+            if self.should_stop():
+                self.stop_observed = True
+                return False
+            time.sleep(0.01)
+        return True
+
+
+class FakeScrapeDatabase:
+    def __init__(self) -> None:
+        self.updated: list[tuple[str, dict]] = []
+
+    def get_article_status(self, _url: str) -> str:
+        return "pending"
+
+    def update_article(self, url: str, **kwargs) -> None:
+        self.updated.append((url, kwargs))
+
+
+class FakeFileStore:
+    def render_markdown(self, article_data: dict) -> str:
+        return f"# {article_data['title']}"
+
+    def save_article(self, article_data: dict, *, content_markdown: str) -> str:
+        return f"markdown/{article_data['title']}.md"
+
+    def generate_index(self) -> str:
+        return "markdown/INDEX.md"
+
+
+class FakeScraper:
+    def __init__(self) -> None:
+        self.started = False
+        self.stopped = False
+
+    def start(self) -> None:
+        self.started = True
+
+    def stop(self) -> None:
+        self.stopped = True
+
+    def should_stop(self) -> bool:
+        return False
+
+    def scrape_article(self, url: str):
+        return {
+            "title": "Article One",
+            "publish_time": "2024-01-01 08:00:00",
+            "scraped_at": "2024-01-01 09:00:00",
+            "content_html": f"<p>{url}</p>",
+        }
+
+
+def post_json(url: str, payload: dict | None = None) -> dict:
+    data = json.dumps(payload or {}).encode("utf-8")
+    request = urllib.request.Request(
+        url,
+        data=data,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=2) as response:
+        return json.loads(response.read().decode("utf-8"))
 
 
 class DesktopBackendTaskTests(unittest.TestCase):
@@ -156,6 +283,94 @@ class DesktopBackendTaskTests(unittest.TestCase):
                 "reason": "user",
             },
         )
+
+    def test_collection_task_route_emits_started_log_and_completed_events(self):
+        server = create_server(host="127.0.0.1", port=0, collector_factory=FakeCollector)
+        server.start()
+        self.addCleanup(server.stop)
+
+        payload = post_json(f"http://{server.host}:{server.port}/tasks/collection")
+        task_id = payload["task_id"]
+
+        self._wait_for_task_completion(server.task_registry, task_id)
+        events = server.task_registry.drain_events(task_id)
+
+        self.assertEqual(events[0]["type"], "started")
+        self.assertEqual(events[0]["task_type"], "collection")
+        self.assertIn("log", [event["type"] for event in events])
+        self.assertEqual(events[-1]["type"], "completed")
+
+    def test_collection_task_route_surfaces_workflow_logs_as_log_events(self):
+        server = create_server(host="127.0.0.1", port=0, collector_factory=FakeCollector)
+        server.start()
+        self.addCleanup(server.stop)
+
+        payload = post_json(f"http://{server.host}:{server.port}/tasks/collection")
+        task_id = payload["task_id"]
+
+        self._wait_for_task_completion(server.task_registry, task_id)
+        events = server.task_registry.drain_events(task_id)
+        log_messages = [event["message"] for event in events if event["type"] == "log"]
+
+        self.assertTrue(any("开始采集" in message for message in log_messages))
+        self.assertTrue(any("已保存" in message for message in log_messages))
+
+    def test_scrape_task_route_surfaces_progress_events(self):
+        server = create_server(
+            host="127.0.0.1",
+            port=0,
+            scraper_factory=FakeScraper,
+            scrape_db_factory=FakeScrapeDatabase,
+            file_store_factory=FakeFileStore,
+            pending_articles_provider=lambda: [(1, "https://example.com/article-1")],
+        )
+        server.start()
+        self.addCleanup(server.stop)
+
+        payload = post_json(f"http://{server.host}:{server.port}/tasks/scrape")
+        task_id = payload["task_id"]
+
+        self._wait_for_task_completion(server.task_registry, task_id)
+        events = server.task_registry.drain_events(task_id)
+        progress_events = [event for event in events if event["type"] == "progress"]
+
+        self.assertEqual(len(progress_events), 1)
+        self.assertEqual(progress_events[0]["current"], 1)
+        self.assertEqual(progress_events[0]["total"], 1)
+        self.assertEqual(progress_events[0]["message"], "已处理 1/1 篇")
+
+    def test_stop_route_honors_workflow_stop_checker(self):
+        holders: list[BlockingCollector] = []
+
+        def collector_factory():
+            collector = BlockingCollector()
+            holders.append(collector)
+            return collector
+
+        server = create_server(host="127.0.0.1", port=0, collector_factory=collector_factory)
+        server.start()
+        self.addCleanup(server.stop)
+
+        payload = post_json(f"http://{server.host}:{server.port}/tasks/collection")
+        task_id = payload["task_id"]
+
+        stop_payload = post_json(f"http://{server.host}:{server.port}/tasks/{task_id}/stop")
+
+        self.assertEqual(stop_payload["task_id"], task_id)
+        self.assertTrue(stop_payload["stopping"])
+
+        self._wait_for_task_completion(server.task_registry, task_id)
+        events = server.task_registry.drain_events(task_id)
+
+        self.assertTrue(holders[0].stop_observed)
+        self.assertEqual(events[-1]["type"], "stopped")
+
+    def _wait_for_task_completion(self, registry: TaskRegistry, task_id: str) -> None:
+        deadline = time.time() + 5
+        while registry.is_active(task_id):
+            if time.time() >= deadline:
+                self.fail(f"task {task_id} did not complete in time")
+            time.sleep(0.02)
 
 
 if __name__ == "__main__":

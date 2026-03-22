@@ -65,7 +65,10 @@ class TaskRegistry:
             return self._finalize_task_unlocked(task_id, event)
 
     def record_error(self, task_id: str, message: object) -> TaskEvent:
-        return self._append_event(task_id, build_error_event(task_id=task_id, message=message))
+        with self._lock:
+            state = self._require_task_unlocked(task_id)
+            event = build_error_event(task_id=state.task_id, message=message)
+            return self._finalize_task_unlocked(task_id, event)
 
     def record_stopped(self, task_id: str, reason: object = "") -> TaskEvent:
         with self._lock:
