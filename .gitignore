@@ -45,3 +45,4 @@ storage/*.db
 storage/*.db-journal
 config/
 *.log
+.worktrees/
