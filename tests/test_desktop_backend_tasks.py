@@ -1,6 +1,9 @@
 import json
 import time
 import unittest
+from dataclasses import dataclass
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest import mock
 import urllib.request
 import urllib.error
@@ -175,6 +178,38 @@ class MixedResultScraper(FakeScraper):
         return None
 
 
+@dataclass
+class FakePoint:
+    x: int
+    y: int
+
+
+class FakeCalibrationRuntime:
+    def __init__(self, positions: list[FakePoint] | None = None) -> None:
+        self._positions = list(positions or [])
+        self.clicks: list[tuple[int, int]] = []
+        self.scrolls: list[int] = []
+        self.moves: list[tuple[int, int, float]] = []
+        self.sleeps: list[float] = []
+
+    def get_current_position(self) -> FakePoint:
+        if not self._positions:
+            raise AssertionError("no more calibration positions configured")
+        return self._positions.pop(0)
+
+    def click(self, x: int, y: int) -> None:
+        self.clicks.append((x, y))
+
+    def scroll(self, amount: int) -> None:
+        self.scrolls.append(amount)
+
+    def move_to(self, x: int, y: int, duration: float) -> None:
+        self.moves.append((x, y, duration))
+
+    def sleep(self, seconds: float) -> None:
+        self.sleeps.append(seconds)
+
+
 def post_json(url: str, payload: dict | None = None) -> dict:
     data = json.dumps(payload or {}).encode("utf-8")
     request = urllib.request.Request(
@@ -246,6 +281,83 @@ class DesktopBackendTaskTests(unittest.TestCase):
             [event["type"] for event in registry.drain_events(task_id)],
             ["started", "stopped"],
         )
+
+    def test_calibration_task_emits_position_prompts_in_order_for_article_click_area(self):
+        runtime = FakeCalibrationRuntime(
+            positions=[
+                FakePoint(100, 100),
+                FakePoint(100, 140),
+                FakePoint(100, 130),
+            ]
+        )
+
+        with TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config" / "coordinates.json"
+
+            with mock.patch("services.calibration_service.resolve_runtime_path", return_value=config_path):
+                server = create_server(
+                    host="127.0.0.1",
+                    port=0,
+                    calibration_runtime_factory=lambda: runtime,
+                )
+                server.start()
+                self.addCleanup(server.stop)
+
+                payload = post_json(
+                    f"http://{server.host}:{server.port}/tasks/calibration",
+                    {"action": "article_click_area"},
+                )
+                task_id = payload["task_id"]
+
+                first_prompt = self._wait_for_task_prompt(
+                    f"http://{server.host}:{server.port}/tasks/{task_id}",
+                    "article_click_area.first_top",
+                )
+                self.assertEqual(first_prompt["prompt"]["kind"], "position")
+                self.assertIn("步骤 1/3", first_prompt["prompt"]["message"])
+
+                post_json(
+                    f"http://{server.host}:{server.port}/tasks/{task_id}/respond",
+                    {"response": "record"},
+                )
+
+                second_prompt = self._wait_for_task_prompt(
+                    f"http://{server.host}:{server.port}/tasks/{task_id}",
+                    "article_click_area.second_top",
+                )
+                self.assertEqual(second_prompt["prompt"]["kind"], "position")
+                self.assertIn("步骤 2/3", second_prompt["prompt"]["message"])
+
+                post_json(
+                    f"http://{server.host}:{server.port}/tasks/{task_id}/respond",
+                    {"response": "record"},
+                )
+
+                third_prompt = self._wait_for_task_prompt(
+                    f"http://{server.host}:{server.port}/tasks/{task_id}",
+                    "article_click_area.first_bottom",
+                )
+                self.assertEqual(third_prompt["prompt"]["kind"], "position")
+                self.assertIn("步骤 3/3", third_prompt["prompt"]["message"])
+
+                post_json(
+                    f"http://{server.host}:{server.port}/tasks/{task_id}/respond",
+                    {"response": "record"},
+                )
+
+                self._wait_for_task_completion(server.task_registry, task_id)
+                events = server.task_registry.drain_events(task_id)
+                prompt_steps = [event["prompt"]["step"] for event in events if event["type"] == "prompt"]
+
+                self.assertEqual(
+                    prompt_steps,
+                    [
+                        "article_click_area.first_top",
+                        "article_click_area.second_top",
+                        "article_click_area.first_bottom",
+                    ],
+                )
+                self.assertEqual(events[-1]["type"], "completed")
 
     def test_task_snapshot_route_returns_current_events_and_state(self):
         holders: list[BlockingCollector] = []
@@ -618,6 +730,18 @@ class DesktopBackendTaskTests(unittest.TestCase):
                 if time.time() >= deadline:
                     raise
                 time.sleep(0.05)
+
+    def _wait_for_task_prompt(self, url: str, step: str) -> dict:
+        deadline = time.time() + 5
+
+        while True:
+            snapshot = self._wait_for_json(url)
+            prompt = snapshot.get("prompt")
+            if prompt and prompt.get("step") == step:
+                return snapshot
+            if time.time() >= deadline:
+                self.fail(f"task prompt {step} did not arrive in time")
+            time.sleep(0.05)
 
 
 if __name__ == "__main__":

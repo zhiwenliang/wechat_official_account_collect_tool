@@ -18,7 +18,18 @@ export type BackendStatus =
       message: string;
     };
 
-export type TaskType = "collection" | "scrape";
+export type TaskType = "collection" | "scrape" | "calibration";
+
+export type TaskPrompt = {
+  step: string;
+  kind: "position" | "ack" | "integer" | "confirm";
+  title: string;
+  message: string;
+  default_value?: number;
+  min_value?: number;
+  confirm_label?: string;
+  reject_label?: string;
+};
 
 export type TaskStartedEvent = {
   type: "started";
@@ -47,6 +58,12 @@ export type TaskStatusEvent = {
   task_id: string;
   status: string;
   message: string;
+};
+
+export type TaskPromptEvent = {
+  type: "prompt";
+  task_id: string;
+  prompt: TaskPrompt;
 };
 
 export type TaskCompletedEvent = {
@@ -78,6 +95,7 @@ export type TaskEvent =
   | TaskLogEvent
   | TaskProgressEvent
   | TaskStatusEvent
+  | TaskPromptEvent
   | TaskCompletedEvent
   | TaskErrorEvent
   | TaskStoppedEvent
@@ -88,6 +106,7 @@ export type TaskSnapshotPayload = {
   task_type: TaskType;
   active: boolean;
   stopping: boolean;
+  prompt?: TaskPrompt | null;
   events: TaskEvent[];
 };
 
@@ -107,7 +126,15 @@ export type TaskSessionSummary = {
 };
 
 export function getTaskDisplayName(taskType: TaskType) {
-  return taskType === "collection" ? "采集" : "抓取";
+  if (taskType === "collection") {
+    return "采集";
+  }
+
+  if (taskType === "scrape") {
+    return "抓取";
+  }
+
+  return "校准";
 }
 
 export function isTerminalTaskEvent(event: TaskEvent) {
@@ -124,6 +151,8 @@ export function formatTaskEventMessage(event: TaskEvent) {
       return event.message || `已处理 ${event.current}/${event.total}`;
     case "status":
       return event.message || event.status;
+    case "prompt":
+      return event.prompt.message;
     case "completed":
       return `${getTaskDisplayName(event.task_type)}任务已完成`;
     case "error":

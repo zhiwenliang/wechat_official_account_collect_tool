@@ -24,6 +24,7 @@ def create_server(
     scrape_db_factory=None,
     file_store_factory=None,
     pending_articles_provider=None,
+    calibration_runtime_factory=None,
 ) -> DesktopBackendServer:
     task_registry = TaskRegistry()
     task_handlers = WorkflowTaskHandlers(
@@ -33,6 +34,7 @@ def create_server(
         scrape_db_factory=scrape_db_factory,
         file_store_factory=file_store_factory,
         pending_articles_provider=pending_articles_provider,
+        calibration_runtime_factory=calibration_runtime_factory,
     )
 
     return DesktopBackendServer(
@@ -64,6 +66,7 @@ def _handle_get(
         "task_type": snapshot.task_type,
         "active": snapshot.active,
         "stopping": snapshot.stopping,
+        "prompt": snapshot.prompt,
         "events": snapshot.events,
     }
 
@@ -128,12 +131,26 @@ def _handle_post(
         task_id = task_handlers.start_scrape_task()
         return 202, {"task_id": task_id}
 
+    if path == "/tasks/calibration":
+        action = payload.get("action")
+        if not action:
+            return 400, {"status": "error", "message": "action is required"}
+        task_id = task_handlers.start_calibration_task(str(action))
+        return 202, {"task_id": task_id}
+
     if path.startswith("/tasks/") and path.endswith("/stop"):
         task_id = path[len("/tasks/") : -len("/stop")].strip("/")
         stopping = task_handlers.request_stop(task_id)
         if not stopping:
             return 404, {"status": "error", "message": "task not found", "task_id": task_id}
         return 202, {"task_id": task_id, "stopping": True}
+
+    if path.startswith("/tasks/") and path.endswith("/respond"):
+        task_id = path[len("/tasks/") : -len("/respond")].strip("/")
+        accepted = task_handlers.submit_calibration_response(task_id, payload)
+        if not accepted:
+            return 404, {"status": "error", "message": "task not found", "task_id": task_id}
+        return 202, {"task_id": task_id, "accepted": True}
 
     return None
 

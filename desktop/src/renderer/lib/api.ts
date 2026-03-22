@@ -106,6 +106,19 @@ export type TaskStopPayload = {
 };
 
 export type TaskSnapshotResponse = TaskSnapshotPayload;
+export type CalibrationAction =
+  | "article_click_area"
+  | "scroll_amount"
+  | "visible_articles"
+  | "more_button"
+  | "copy_link_menu"
+  | "tab_management"
+  | "test";
+
+export type CalibrationTaskResponsePayload = {
+  task_id: string;
+  accepted: boolean;
+};
 
 export function startCollectionTask() {
   return requestJson<TaskStartPayload>("/tasks/collection", {
@@ -127,6 +140,16 @@ export function startScrapeTask() {
   });
 }
 
+export function startCalibrationTask(action: CalibrationAction) {
+  return requestJson<TaskStartPayload>("/tasks/calibration", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ action }),
+  });
+}
+
 export function stopTask(taskId: string) {
   return requestJson<TaskStopPayload>(`/tasks/${taskId}/stop`, {
     method: "POST",
@@ -139,4 +162,20 @@ export function stopTask(taskId: string) {
 
 export function getTaskSnapshot(taskId: string) {
   return requestJson<TaskSnapshotResponse>(`/tasks/${taskId}`);
+}
+
+export function respondToCalibrationTask(
+  taskId: string,
+  payload:
+    | { response: "record" }
+    | { response: "continue"; value?: number }
+    | { response: "confirm"; accepted: boolean },
+) {
+  return requestJson<CalibrationTaskResponsePayload>(`/tasks/${taskId}/respond`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
 }

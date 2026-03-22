@@ -5,6 +5,7 @@ import { getBackendStatus } from "./lib/api";
 import type { BackendStatus } from "./lib/task-events";
 import { ArticlesPage } from "./pages/articles/ArticlesPage";
 import { DashboardPage } from "./pages/dashboard/DashboardPage";
+import { CalibrationPage } from "./pages/calibration/CalibrationPage";
 import { CollectionPage } from "./pages/collection/CollectionPage";
 import { ScrapingPage } from "./pages/scraping/ScrapingPage";
 
@@ -83,7 +84,7 @@ export function App() {
           <p className="shell__eyebrow">Electron Desktop Workspace</p>
           <h1>微信公众号文章采集工具</h1>
           <p className="shell__description">
-            新桌面 UI 先接入只读总览和文章管理，后续再继续补采集、抓取和校准流程。
+            新桌面 UI 现在已经接入概览、文章管理、采集、抓取和按项坐标校准流程。
           </p>
         </section>
 
@@ -97,6 +98,7 @@ export function App() {
         <nav className="shell__nav" aria-label="主导航">
           <a href="#dashboard">概览</a>
           <a href="#articles">文章</a>
+          <a href="#calibration">校准</a>
           <a href="#collect">采集</a>
           <a href="#scrape">抓取</a>
         </nav>
@@ -107,6 +109,9 @@ export function App() {
             </div>
             <div id="articles">
               <ArticlesPage />
+            </div>
+            <div id="calibration">
+              <CalibrationPage />
             </div>
             <div id="collect">
               <CollectionPage />

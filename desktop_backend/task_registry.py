@@ -6,10 +6,12 @@ from threading import RLock
 
 from .task_events import (
     TaskEvent,
+    TaskPrompt,
     build_cancelled_event,
     build_completed_event,
     build_error_event,
     build_log_event,
+    build_prompt_event,
     build_progress_event,
     build_started_event,
     build_status_event,
@@ -23,6 +25,7 @@ class _TaskState:
     task_type: str
     active: bool = True
     stopping: bool = False
+    prompt: TaskPrompt | None = None
     events: list[TaskEvent] = field(default_factory=list)
 
 
@@ -73,6 +76,22 @@ class TaskRegistry:
             task_id,
             build_status_event(task_id=task_id, status=status, message=message),
         )
+
+    def record_prompt(self, task_id: str, prompt: TaskPrompt) -> TaskEvent:
+        event = build_prompt_event(task_id=task_id, prompt=prompt)
+        with self._lock:
+            state = self._require_task_unlocked(task_id)
+            state.prompt = event["prompt"]
+            state.events.append(event)
+        return event
+
+    def clear_prompt(self, task_id: str) -> None:
+        with self._lock:
+            state = self._tasks.get(task_id)
+            if state is None:
+                state = self._finished_tasks.get(task_id)
+            if state is not None:
+                state.prompt = None
 
     def record_completed(self, task_id: str) -> TaskEvent:
         with self._lock:
@@ -134,6 +153,7 @@ class TaskRegistry:
                 task_type=state.task_type,
                 active=state.active,
                 stopping=state.stopping,
+                prompt=dict(state.prompt) if state.prompt else None,
                 events=list(state.events),
             )
 
@@ -149,6 +169,7 @@ class TaskRegistry:
                 task_type=state.task_type,
                 active=state.active,
                 stopping=state.stopping,
+                prompt=dict(state.prompt) if state.prompt else None,
                 events=list(state.events),
             )
 
@@ -183,6 +204,7 @@ class TaskRegistry:
         state = self._require_task_unlocked(task_id)
         state.events.append(event)
         state.active = False
+        state.prompt = None
         self._finished_tasks[task_id] = state
         self._tasks.pop(task_id, None)
         return event
