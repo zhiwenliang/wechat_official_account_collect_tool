@@ -46,3 +46,5 @@ storage/*.db-journal
 config/
 *.log
 .worktrees/
+!desktop/src/renderer/lib/
+!desktop/src/renderer/lib/**

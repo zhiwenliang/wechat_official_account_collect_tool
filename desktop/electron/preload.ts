@@ -1,5 +1,5 @@
-import { contextBridge } from "electron";
+import { contextBridge, ipcRenderer } from "electron";
 
 contextBridge.exposeInMainWorld("desktop", {
-  ready: true,
+  getBackendStatus: () => ipcRenderer.invoke("desktop:get-backend-status"),
 });

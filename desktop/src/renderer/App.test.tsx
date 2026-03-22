@@ -1,13 +1,32 @@
-import React from "react";
-import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { App } from "./App";
+import { renderBackendCopy } from "./App";
 
-describe("App", () => {
-  it("renders the desktop shell heading", () => {
-    const markup = renderToStaticMarkup(React.createElement(App));
+describe("renderBackendCopy", () => {
+  it("describes a ready backend", () => {
+    expect(
+      renderBackendCopy({
+        state: "ready",
+        health: {
+          status: "ok",
+          service: "desktop-backend",
+        },
+      }),
+    ).toEqual({
+      title: "已连接",
+      description: "backend service: desktop-backend",
+    });
+  });
 
-    expect(markup).toContain("微信公众号文章采集工具");
+  it("describes a backend startup failure", () => {
+    expect(
+      renderBackendCopy({
+        state: "error",
+        message: "python not found",
+      }),
+    ).toEqual({
+      title: "启动失败",
+      description: "python not found",
+    });
   });
 });
