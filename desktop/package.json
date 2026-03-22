@@ -5,9 +5,10 @@
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
+    "serve:e2e": "node scripts/start-e2e-server.cjs",
     "build": "vite build",
     "test": "vitest run",
-    "e2e": "playwright test"
+    "e2e": "npm run build && playwright test"
   },
   "dependencies": {
     "react": "^18.3.1",
