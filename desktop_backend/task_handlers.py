@@ -64,11 +64,15 @@ class WorkflowTaskHandlers:
         task_id = self.task_registry.start_task("collection")
         self._attach_stop_checker(task_id, collector)
         self._register_worker(task_id, collector)
-
-        self._start_worker(
-            task_id,
-            target=lambda: self._run_collection_task(task_id, collector),
-        )
+        try:
+            self._start_worker(
+                task_id,
+                target=lambda: self._run_collection_task(task_id, collector),
+            )
+        except Exception:
+            self._clear_worker(task_id)
+            self.task_registry.discard_task(task_id)
+            raise
         return task_id
 
     def start_scrape_task(self) -> str:
@@ -79,11 +83,15 @@ class WorkflowTaskHandlers:
         task_id = self.task_registry.start_task("scrape")
         self._attach_stop_checker(task_id, scraper)
         self._register_worker(task_id, scraper)
-
-        self._start_worker(
-            task_id,
-            target=lambda: self._run_scrape_task(task_id, db, file_store, scraper, pending_articles),
-        )
+        try:
+            self._start_worker(
+                task_id,
+                target=lambda: self._run_scrape_task(task_id, db, file_store, scraper, pending_articles),
+            )
+        except Exception:
+            self._clear_worker(task_id)
+            self.task_registry.discard_task(task_id)
+            raise
         return task_id
 
     def request_stop(self, task_id: str) -> bool:

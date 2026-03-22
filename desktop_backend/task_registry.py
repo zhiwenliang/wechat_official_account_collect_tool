@@ -137,6 +137,11 @@ class TaskRegistry:
     def complete_task(self, task_id: str) -> TaskEvent:
         return self.record_completed(task_id)
 
+    def discard_task(self, task_id: str) -> None:
+        with self._lock:
+            self._tasks.pop(task_id, None)
+            self._finished_tasks.pop(task_id, None)
+
     def _append_event(self, task_id: str, event: TaskEvent) -> TaskEvent:
         with self._lock:
             state = self._require_task_unlocked(task_id)

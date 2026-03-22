@@ -1,6 +1,7 @@
 import json
 import time
 import unittest
+from unittest import mock
 import urllib.request
 import urllib.error
 
@@ -485,6 +486,34 @@ class DesktopBackendTaskTests(unittest.TestCase):
         payload = json.loads(context.exception.read().decode("utf-8"))
         self.assertEqual(payload["status"], "error")
         self.assertIn("collector unavailable", payload["message"])
+        self.assertEqual(server.task_registry._tasks, {})
+
+    def test_task_route_cleans_up_task_when_worker_thread_fails_to_start(self):
+        from desktop_backend.task_handlers import WorkflowTaskHandlers
+
+        server = create_server(host="127.0.0.1", port=0, collector_factory=FakeCollector)
+        server.start()
+        self.addCleanup(server.stop)
+
+        request = urllib.request.Request(
+            f"http://{server.host}:{server.port}/tasks/collection",
+            data=b"{}",
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+
+        with mock.patch.object(
+            WorkflowTaskHandlers,
+            "_start_worker",
+            side_effect=RuntimeError("cannot start thread"),
+        ):
+            with self.assertRaises(urllib.error.HTTPError) as context:
+                urllib.request.urlopen(request, timeout=2)
+
+        self.assertEqual(context.exception.code, 500)
+        payload = json.loads(context.exception.read().decode("utf-8"))
+        self.assertEqual(payload["status"], "error")
+        self.assertIn("cannot start thread", payload["message"])
         self.assertEqual(server.task_registry._tasks, {})
 
     def test_task_route_returns_json_error_for_invalid_json(self):
