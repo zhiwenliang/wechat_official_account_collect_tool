@@ -160,6 +160,22 @@ class DataTransferTests(unittest.TestCase):
         with zipfile.ZipFile(zip_path) as archive:
             self.assertNotIn("articles/markdown/bundle.zip", archive.namelist())
 
+    def test_export_data_bundle_rejects_output_path_equal_to_database_path(self):
+        root = make_case_root()
+        self.addCleanup(lambda: shutil.rmtree(root, ignore_errors=True))
+        db_path = root / "data" / "articles.db"
+        articles_dir = root / "data" / "articles"
+
+        create_articles_db(db_path, "source")
+
+        with self.assertRaisesRegex(ValueError, "不能覆盖当前数据库文件"):
+            export_data_bundle(db_path, db_path=db_path, articles_dir=articles_dir)
+
+        conn = sqlite3.connect(db_path)
+        title = conn.execute("SELECT title FROM articles").fetchone()[0]
+        conn.close()
+        self.assertEqual(title, "source")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -94,6 +94,8 @@ def export_data_bundle(
 
     if not db_path.exists():
         raise FileNotFoundError(f"数据库文件不存在: {db_path}")
+    if output_path == db_path:
+        raise ValueError("导出路径不能覆盖当前数据库文件")
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
 

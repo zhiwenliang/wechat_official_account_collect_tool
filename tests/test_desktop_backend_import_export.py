@@ -246,6 +246,28 @@ class DesktopBackendImportExportTests(unittest.TestCase):
         self.assertEqual(payload["file_count"], 3)
         self.assertTrue(output_path.exists())
 
+    def test_export_data_bundle_endpoint_rejects_runtime_database_path_as_output(self):
+        current_db = Database()
+        seed_article(current_db, url="https://example.com/current", title="Current", status="pending")
+
+        server = create_server(host="127.0.0.1", port=0)
+        server.start()
+        self.addCleanup(server.stop)
+
+        status_code, payload = post_json(
+            f"http://{server.host}:{server.port}/api/data/export",
+            {"output_path": str(current_db.db_path)},
+        )
+
+        self.assertEqual(status_code, 400)
+        self.assertEqual(payload["status"], "error")
+        self.assertIn("不能覆盖当前数据库文件", payload["message"])
+
+        conn = sqlite3.connect(current_db.db_path)
+        title = conn.execute("SELECT title FROM articles").fetchone()[0]
+        conn.close()
+        self.assertEqual(title, "Current")
+
     def test_import_database_endpoint_replaces_runtime_database_and_keeps_backup(self):
         current_db = Database()
         seed_article(current_db, url="https://example.com/current", title="Current", status="pending")
@@ -275,6 +297,20 @@ class DesktopBackendImportExportTests(unittest.TestCase):
         conn.close()
 
         self.assertEqual(titles, ["Incoming"])
+
+    def test_import_database_endpoint_returns_400_for_missing_source_db(self):
+        server = create_server(host="127.0.0.1", port=0)
+        server.start()
+        self.addCleanup(server.stop)
+
+        status_code, payload = post_json(
+            f"http://{server.host}:{server.port}/api/data/import",
+            {"source_db_path": str(self.root / "missing.db")},
+        )
+
+        self.assertEqual(status_code, 400)
+        self.assertEqual(payload["status"], "error")
+        self.assertIn("数据库文件不存在", payload["message"])
 
     def _restore_runtime_root(self) -> None:
         runtime_env.REPO_ROOT = self._original_runtime_root

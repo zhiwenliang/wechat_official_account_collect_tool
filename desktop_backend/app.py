@@ -72,21 +72,27 @@ def _handle_post(
         output_path = payload.get("output_path")
         if not output_path:
             return 400, {"status": "error", "message": "output_path is required"}
-        result = export_data_bundle_handler(
-            output_path=output_path,
-            db_path=payload.get("db_path"),
-            articles_dir=payload.get("articles_dir"),
-        )
+        try:
+            result = export_data_bundle_handler(
+                output_path=output_path,
+                db_path=payload.get("db_path"),
+                articles_dir=payload.get("articles_dir"),
+            )
+        except (FileNotFoundError, ValueError) as exc:
+            return 400, {"status": "error", "message": str(exc)}
         return 200, {"status": "ok", **result}
 
     if path == "/api/data/import":
         source_db_path = payload.get("source_db_path")
         if not source_db_path:
             return 400, {"status": "error", "message": "source_db_path is required"}
-        result = import_database_handler(
-            source_db_path=source_db_path,
-            target_db_path=payload.get("target_db_path"),
-        )
+        try:
+            result = import_database_handler(
+                source_db_path=source_db_path,
+                target_db_path=payload.get("target_db_path"),
+            )
+        except (FileNotFoundError, ValueError) as exc:
+            return 400, {"status": "error", "message": str(exc)}
         return 200, {"status": "ok", **result}
 
     if path == "/tasks/collection":
