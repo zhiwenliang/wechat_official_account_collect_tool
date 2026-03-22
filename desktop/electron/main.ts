@@ -183,6 +183,7 @@ class PythonSidecarController {
           if (isBackendHealth(payload)) {
             this.status = {
               state: "ready",
+              baseUrl: `http://${BACKEND_HOST}:${port}`,
               health: payload,
             };
             return;

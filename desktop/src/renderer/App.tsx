@@ -1,13 +1,17 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { getBackendStatus } from "./lib/api";
 import type { BackendStatus } from "./lib/task-events";
+import { ArticlesPage } from "./pages/articles/ArticlesPage";
+import { DashboardPage } from "./pages/dashboard/DashboardPage";
 
 const INITIAL_STATUS: BackendStatus = {
   state: "starting",
   message: "正在启动 Python sidecar",
 };
 const BACKEND_STATUS_POLL_INTERVAL_MS = 3000;
+const queryClient = new QueryClient();
 
 export function renderBackendCopy(status: BackendStatus) {
   switch (status.state) {
@@ -70,28 +74,37 @@ export function App() {
   const backendCopy = renderBackendCopy(backendStatus);
 
   return (
-    <main className="shell">
-      <section className="shell__hero" aria-label="桌面工作区">
-        <p className="shell__eyebrow">Electron Desktop Workspace</p>
-        <h1>微信公众号文章采集工具</h1>
-        <p className="shell__description">
-          这是桌面端的导航壳层，后续阶段会把采集、抓取和索引能力接到这里。
-        </p>
-      </section>
+    <QueryClientProvider client={queryClient}>
+      <main className="shell">
+        <section className="shell__hero" aria-label="桌面工作区">
+          <p className="shell__eyebrow">Electron Desktop Workspace</p>
+          <h1>微信公众号文章采集工具</h1>
+          <p className="shell__description">
+            新桌面 UI 先接入只读总览和文章管理，后续再继续补采集、抓取和校准流程。
+          </p>
+        </section>
 
-      <section className="shell__hero" aria-label="后端状态" role="status">
-        <p className="shell__eyebrow">Python Sidecar</p>
-        <h2>后端状态</h2>
-        <p className="shell__description">{backendCopy.title}</p>
-        <p className="shell__description">{backendCopy.description}</p>
-      </section>
+        <section className="shell__hero" aria-label="后端状态" role="status">
+          <p className="shell__eyebrow">Python Sidecar</p>
+          <h2>后端状态</h2>
+          <p className="shell__description">{backendCopy.title}</p>
+          <p className="shell__description">{backendCopy.description}</p>
+        </section>
 
-      <nav className="shell__nav" aria-label="主导航">
-        <a href="#collect">采集</a>
-        <a href="#scrape">抓取</a>
-        <a href="#index">索引</a>
-        <a href="#settings">设置</a>
-      </nav>
-    </main>
+        <nav className="shell__nav" aria-label="主导航">
+          <a href="#dashboard">概览</a>
+          <a href="#articles">文章</a>
+          <a href="#collect">采集</a>
+          <a href="#scrape">抓取</a>
+        </nav>
+
+        <div id="dashboard">
+          <DashboardPage />
+        </div>
+        <div id="articles">
+          <ArticlesPage />
+        </div>
+      </main>
+    </QueryClientProvider>
   );
 }

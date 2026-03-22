@@ -10,6 +10,7 @@ export type BackendStatus =
     }
   | {
       state: "ready";
+      baseUrl: string;
       health: BackendHealth;
     }
   | {

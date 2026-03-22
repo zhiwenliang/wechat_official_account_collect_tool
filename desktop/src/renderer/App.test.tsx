@@ -3,6 +3,14 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
+vi.mock("./pages/dashboard/DashboardPage", () => ({
+  DashboardPage: () => <div>Dashboard stub</div>,
+}));
+
+vi.mock("./pages/articles/ArticlesPage", () => ({
+  ArticlesPage: () => <div>Articles stub</div>,
+}));
+
 import { App, renderBackendCopy } from "./App";
 
 async function renderApp() {
@@ -39,6 +47,7 @@ describe("renderBackendCopy", () => {
     expect(
       renderBackendCopy({
         state: "ready",
+        baseUrl: "http://desktop-backend",
         health: {
           status: "ok",
           service: "desktop-backend",
@@ -64,19 +73,25 @@ describe("renderBackendCopy", () => {
 
   it("refreshes backend status after the initial ready snapshot", async () => {
     vi.useFakeTimers();
-    const getBackendStatus = vi
-      .fn()
-      .mockResolvedValueOnce({
-        state: "ready",
-        health: {
-          status: "ok",
-          service: "desktop-backend",
-        },
-      })
-      .mockResolvedValueOnce({
+    let invocationCount = 0;
+    const getBackendStatus = vi.fn().mockImplementation(() => {
+      invocationCount += 1;
+      if (invocationCount === 1) {
+        return Promise.resolve({
+          state: "ready",
+          baseUrl: "http://desktop-backend",
+          health: {
+            status: "ok",
+            service: "desktop-backend",
+          },
+        });
+      }
+
+      return Promise.resolve({
         state: "error",
         message: "desktop backend exited",
       });
+    });
 
     Object.defineProperty(window, "desktop", {
       configurable: true,
