@@ -58,17 +58,25 @@ conda remove -n wechat-scraper --all
 
 - Node.js 建议使用 20.x 或更新的稳定版本。
 - 先安装桌面端依赖：`npm --prefix desktop install`
-- 启动桌面端开发模式：`npm --prefix desktop run dev`
-- `desktop/` 里的 Electron 只负责桌面壳层，Python 侧仍然保留现有的采集与抓取实现，后续会通过 sidecar 方式接入，而不是把业务逻辑重写进前端。
+- 开发模式启动 Electron：`npm --prefix desktop run dev`
+- 预览构建结果：`npm --prefix desktop run build`
+- 生成可分发包：`npm --prefix desktop run package:desktop`
+- `desktop/` 里的 Electron 只负责桌面壳层，Python 侧仍然保留现有的采集与抓取实现。
 
-### Python sidecar 开发启动
+### Python sidecar
+
+开发时仍然直接运行 Python backend：
 
 ```bash
 conda activate wechat-scraper
 python -m desktop_backend.app
 ```
 
-默认会启动一个轻量 HTTP 服务，提供 `GET /health` 和查询接口。
+Electron 主进程会优先读取 `DESKTOP_BACKEND_EXECUTABLE`，其次读取 `DESKTOP_BACKEND_PYTHON`，最后在打包模式下查找资源目录里的 frozen sidecar。启动失败会在桌面 UI 中直接显示。
+
+### Tkinter 回退
+
+迁移期间 `python -m gui.main` 仍然可用，作为 Electron 桌面壳之外的回退入口。若 Electron 版本的 sidecar 或资源路径配置不符合预期，先切回 Tkinter 版本继续操作，不要阻塞采集/抓取流程。
 
 ## 快速开始
 
@@ -105,12 +113,15 @@ python main.py import-db C:\\path\\to\\articles.db
 
 ## 打包可执行程序
 
-项目提供了统一打包脚本，并带有 GitHub Actions 工作流用于生成 GUI 可执行程序。
-当前推荐通过 Actions 生成以下内部使用产物：
-- `wechat-scraper-gui-macos-arm64.zip`
-- `wechat-scraper-gui-windows-x64.zip`
+当前 Electron 桌面壳的本地打包由 `desktop/package.json` 管理。
+推荐的桌面端 release 顺序是：
 
-打包完成后，脚本会自动把 Playwright 的 Chromium 浏览器目录复制到产物运行目录旁边，解压后即可直接执行阶段 2 抓取。
+1. 完成 Python 依赖和 sidecar 构建
+2. 运行 `npm --prefix desktop run build`
+3. 运行 `npm --prefix desktop run package:desktop`
+4. 确认打包产物中的 sidecar 路径或 `DESKTOP_BACKEND_EXECUTABLE` 配置正确
+
+Electron 打包当前只负责桌面壳和前端资源，不会自动替你生成 Python frozen sidecar；release 流程需要把 sidecar 放到约定位置，或者通过环境变量显式指定可执行文件路径。
 
 ### 推荐：通过 GitHub Actions 打包 GUI
 
@@ -144,6 +155,9 @@ playwright install chromium
 # 生成 GUI 分发压缩包
 python scripts/package_app.py --target gui --archive
 
+# 打包 Electron 桌面壳
+npm --prefix desktop run package:desktop
+
 # macOS 共享给其他人时，可选：使用证书签名 .app
 python scripts/package_app.py --target gui --archive \
   --macos-codesign-identity "Developer ID Application: Your Name (TEAMID)"
@@ -174,6 +188,7 @@ python scripts/package_app.py --target gui --onefile
 - 打包环境应当先确认 `python -m gui.main` 可以正常启动，再执行 PyInstaller
 - 打包前需要先在构建机执行 `playwright install chromium`
 - 打包后的程序会优先使用产物旁边的 `ms-playwright` 浏览器目录
+- Electron release 需要可访问的 Python sidecar，可通过 `DESKTOP_BACKEND_EXECUTABLE` 显式指定，或者把 frozen sidecar 放到 Electron 资源目录里的 `sidecar/` 下
 - 若未显式传入 `--icon`，打包脚本会默认使用 `assets/icons/wechat-scraper.icns` 或 `assets/icons/wechat-scraper.ico`
 - 若传入 `--macos-codesign-identity`，打包脚本会在复制 Playwright 浏览器后对 `.app` 执行 `codesign`
 - 本地 macOS 打包若用于当前仓库约定的分发目标，应在 Apple Silicon 机器上执行

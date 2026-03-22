@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:desktop": "vite build",
+    "package:desktop": "npm run build && electron-builder --publish never",
+    "package:desktop:dir": "npm run build && electron-builder --dir --publish never",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "test": "vitest run",
@@ -24,10 +27,25 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
     "electron": "^31.7.7",
+    "electron-builder": "^25.1.8",
     "jsdom": "^25.0.1",
     "typescript": "^5.6.3",
     "vite": "^5.4.10",
     "vite-plugin-electron": "^0.29.0",
     "vitest": "^2.1.9"
+  },
+  "build": {
+    "appId": "com.wechat.scraper.desktop",
+    "productName": "WeChatScraper",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**",
+      "dist-electron/**",
+      "electron/**",
+      "package.json"
+    ],
+    "asar": true
   }
 }
