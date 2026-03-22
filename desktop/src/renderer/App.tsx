@@ -7,6 +7,7 @@ const INITIAL_STATUS: BackendStatus = {
   state: "starting",
   message: "正在启动 Python sidecar",
 };
+const BACKEND_STATUS_POLL_INTERVAL_MS = 3000;
 
 export function renderBackendCopy(status: BackendStatus) {
   switch (status.state) {
@@ -33,14 +34,15 @@ export function App() {
 
   useEffect(() => {
     let isActive = true;
+    let intervalId: number | undefined;
 
-    void getBackendStatus()
-      .then((status) => {
+    const refreshBackendStatus = async () => {
+      try {
+        const status = await getBackendStatus();
         if (isActive) {
           setBackendStatus(status);
         }
-      })
-      .catch((error: unknown) => {
+      } catch (error: unknown) {
         if (!isActive) {
           return;
         }
@@ -49,10 +51,19 @@ export function App() {
           state: "error",
           message: error instanceof Error ? error.message : "Desktop bridge unavailable",
         });
-      });
+      }
+    };
+
+    void refreshBackendStatus();
+    intervalId = window.setInterval(() => {
+      void refreshBackendStatus();
+    }, BACKEND_STATUS_POLL_INTERVAL_MS);
 
     return () => {
       isActive = false;
+      if (intervalId !== undefined) {
+        window.clearInterval(intervalId);
+      }
     };
   }, []);
 

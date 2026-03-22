@@ -151,12 +151,11 @@ class PythonSidecarController {
     });
 
     child.once("exit", (code, signal) => {
-      if (this.status.state !== "ready") {
-        this.status = {
-          state: "error",
-          message: `Desktop backend exited before readiness (${describeExit(code, signal)})`,
-        };
-      }
+      this.status = {
+        state: "error",
+        message: `Desktop backend exited (${describeExit(code, signal)})`,
+      };
+      this.child = null;
     });
 
     await this.waitForHealth(port);
