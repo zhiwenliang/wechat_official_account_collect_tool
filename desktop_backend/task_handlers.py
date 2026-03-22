@@ -56,11 +56,14 @@ class WorkflowTaskHandlers:
         self._scrape_db_factory = scrape_db_factory or _default_db_factory
         self._file_store_factory = file_store_factory or _default_file_store_factory
         self._pending_articles_provider = pending_articles_provider
+        self._active_workers: dict[str, object] = {}
+        self._workers_lock = threading.RLock()
 
     def start_collection_task(self) -> str:
-        task_id = self.task_registry.start_task("collection")
         collector = self._collector_factory()
+        task_id = self.task_registry.start_task("collection")
         self._attach_stop_checker(task_id, collector)
+        self._register_worker(task_id, collector)
 
         self._start_worker(
             task_id,
@@ -69,12 +72,13 @@ class WorkflowTaskHandlers:
         return task_id
 
     def start_scrape_task(self) -> str:
-        task_id = self.task_registry.start_task("scrape")
         scraper = self._scraper_factory()
-        self._attach_stop_checker(task_id, scraper)
         db = self._scrape_db_factory()
         file_store = self._file_store_factory()
         pending_articles = self._pending_articles_provider() if self._pending_articles_provider else None
+        task_id = self.task_registry.start_task("scrape")
+        self._attach_stop_checker(task_id, scraper)
+        self._register_worker(task_id, scraper)
 
         self._start_worker(
             task_id,
@@ -86,6 +90,11 @@ class WorkflowTaskHandlers:
         if not self.task_registry.is_active(task_id):
             return False
         self.task_registry.request_stop(task_id)
+        worker = self._get_worker(task_id)
+        if worker is not None:
+            stop = getattr(worker, "stop", None)
+            if callable(stop):
+                stop()
         return True
 
     def _start_worker(self, task_id: str, *, target: Callable[[], None]) -> None:
@@ -101,6 +110,18 @@ class WorkflowTaskHandlers:
         original_should_stop = getattr(worker, "should_stop", None)
         if callable(original_should_stop):
             worker.should_stop = lambda: bool(stop_checker() or original_should_stop())
+
+    def _register_worker(self, task_id: str, worker: object) -> None:
+        with self._workers_lock:
+            self._active_workers[task_id] = worker
+
+    def _get_worker(self, task_id: str) -> object | None:
+        with self._workers_lock:
+            return self._active_workers.get(task_id)
+
+    def _clear_worker(self, task_id: str) -> None:
+        with self._workers_lock:
+            self._active_workers.pop(task_id, None)
 
     def _run_collection_task(self, task_id: str, collector) -> None:
         try:
@@ -118,6 +139,8 @@ class WorkflowTaskHandlers:
         except Exception as exc:
             self.task_registry.record_error(task_id, str(exc))
             return
+        finally:
+            self._clear_worker(task_id)
 
         if result.stopped:
             self.task_registry.record_stopped(task_id, "stop requested")
@@ -144,6 +167,8 @@ class WorkflowTaskHandlers:
         except Exception as exc:
             self.task_registry.record_error(task_id, str(exc))
             return
+        finally:
+            self._clear_worker(task_id)
 
         if result.stopped:
             self.task_registry.record_stopped(task_id, "stop requested")

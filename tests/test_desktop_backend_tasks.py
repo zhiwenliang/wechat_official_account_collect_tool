@@ -2,6 +2,7 @@ import json
 import time
 import unittest
 import urllib.request
+import urllib.error
 
 from desktop_backend.app import create_server
 
@@ -126,6 +127,27 @@ class FakeScraper:
             "scraped_at": "2024-01-01 09:00:00",
             "content_html": f"<p>{url}</p>",
         }
+
+
+class BlockingScraper(FakeScraper):
+    def __init__(self) -> None:
+        super().__init__()
+        self.stop_called = False
+
+    def stop(self) -> None:
+        self.stop_called = True
+        self.stopped = True
+
+    def should_stop(self) -> bool:
+        return self.stop_called
+
+    def scrape_article(self, url: str):
+        deadline = time.time() + 2
+        while time.time() < deadline:
+            if self.should_stop():
+                return None
+            time.sleep(0.01)
+        return super().scrape_article(url)
 
 
 def post_json(url: str, payload: dict | None = None) -> dict:
@@ -364,6 +386,81 @@ class DesktopBackendTaskTests(unittest.TestCase):
 
         self.assertTrue(holders[0].stop_observed)
         self.assertEqual(events[-1]["type"], "stopped")
+
+    def test_scrape_stop_route_calls_scraper_stop(self):
+        holders: list[BlockingScraper] = []
+
+        def scraper_factory():
+            scraper = BlockingScraper()
+            holders.append(scraper)
+            return scraper
+
+        server = create_server(
+            host="127.0.0.1",
+            port=0,
+            scraper_factory=scraper_factory,
+            scrape_db_factory=FakeScrapeDatabase,
+            file_store_factory=FakeFileStore,
+            pending_articles_provider=lambda: [(1, "https://example.com/article-1")],
+        )
+        server.start()
+        self.addCleanup(server.stop)
+
+        payload = post_json(f"http://{server.host}:{server.port}/tasks/scrape")
+        task_id = payload["task_id"]
+
+        stop_payload = post_json(f"http://{server.host}:{server.port}/tasks/{task_id}/stop")
+
+        self.assertEqual(stop_payload["task_id"], task_id)
+        self.assertTrue(stop_payload["stopping"])
+        self._wait_for_task_completion(server.task_registry, task_id)
+
+        events = server.task_registry.drain_events(task_id)
+        self.assertTrue(holders[0].stop_called)
+        self.assertEqual(events[-1]["type"], "stopped")
+
+    def test_task_route_returns_json_error_when_factory_fails(self):
+        def bad_collector_factory():
+            raise RuntimeError("collector unavailable")
+
+        server = create_server(host="127.0.0.1", port=0, collector_factory=bad_collector_factory)
+        server.start()
+        self.addCleanup(server.stop)
+
+        request = urllib.request.Request(
+            f"http://{server.host}:{server.port}/tasks/collection",
+            data=b"{}",
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+
+        with self.assertRaises(urllib.error.HTTPError) as context:
+            urllib.request.urlopen(request, timeout=2)
+
+        self.assertEqual(context.exception.code, 500)
+        payload = json.loads(context.exception.read().decode("utf-8"))
+        self.assertEqual(payload["status"], "error")
+        self.assertIn("collector unavailable", payload["message"])
+
+    def test_task_route_returns_json_error_for_invalid_json(self):
+        server = create_server(host="127.0.0.1", port=0, collector_factory=FakeCollector)
+        server.start()
+        self.addCleanup(server.stop)
+
+        request = urllib.request.Request(
+            f"http://{server.host}:{server.port}/tasks/collection",
+            data=b"{invalid",
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+
+        with self.assertRaises(urllib.error.HTTPError) as context:
+            urllib.request.urlopen(request, timeout=2)
+
+        self.assertEqual(context.exception.code, 400)
+        payload = json.loads(context.exception.read().decode("utf-8"))
+        self.assertEqual(payload["status"], "error")
+        self.assertEqual(payload["message"], "invalid json body")
 
     def _wait_for_task_completion(self, registry: TaskRegistry, task_id: str) -> None:
         deadline = time.time() + 5

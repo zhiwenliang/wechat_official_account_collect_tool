@@ -116,7 +116,11 @@ class DesktopBackendServer:
         parsed = urlsplit(handler.path)
         path = parsed.path
         query = parse_qs(parsed.query)
-        body = self._read_json_body(handler) if handler.command == "POST" else None
+        try:
+            body = self._read_json_body(handler) if handler.command == "POST" else None
+        except ValueError as exc:
+            self._write_json(handler, 400, {"status": "error", "message": str(exc)})
+            return
 
         if path == "/health":
             self._write_json(
@@ -130,7 +134,11 @@ class DesktopBackendServer:
             return
 
         if handler.command == "POST" and self._post_handler is not None:
-            result = self._post_handler(path, query, body)
+            try:
+                result = self._post_handler(path, query, body)
+            except Exception as exc:
+                self._write_json(handler, 500, {"status": "error", "message": str(exc)})
+                return
             if result is not None:
                 status_code, payload = result
                 self._write_json(handler, status_code, payload)
@@ -159,7 +167,10 @@ class DesktopBackendServer:
         raw_body = handler.rfile.read(content_length)
         if not raw_body:
             return {}
-        return json.loads(raw_body.decode("utf-8"))
+        try:
+            return json.loads(raw_body.decode("utf-8"))
+        except json.JSONDecodeError as exc:
+            raise ValueError("invalid json body") from exc
 
 
 def _parse_int(query: dict[str, list[str]], key: str, default: int) -> int:
