@@ -3,6 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { getRecentArticles, getStatistics } from "../../lib/api";
 import { StatisticsCards } from "../../components/StatisticsCards";
 
+function getQueryErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "unknown error";
+}
+
 export function DashboardPage() {
   const statisticsQuery = useQuery({
     queryKey: ["statistics"],
@@ -12,6 +16,28 @@ export function DashboardPage() {
     queryKey: ["recent-articles"],
     queryFn: () => getRecentArticles(5),
   });
+  const dashboardError = statisticsQuery.error ?? recentArticlesQuery.error;
+
+  if (statisticsQuery.isPending || recentArticlesQuery.isPending) {
+    return (
+      <section className="shell__hero" aria-label="Dashboard">
+        <p className="shell__eyebrow">Dashboard</p>
+        <h2>概览</h2>
+        <p className="shell__description">概览数据加载中</p>
+      </section>
+    );
+  }
+
+  if (dashboardError) {
+    return (
+      <section className="shell__hero" aria-label="Dashboard">
+        <p className="shell__eyebrow">Dashboard</p>
+        <h2>概览</h2>
+        <p className="shell__description">概览数据加载失败</p>
+        <p className="shell__description">{getQueryErrorMessage(dashboardError)}</p>
+      </section>
+    );
+  }
 
   const stats = statisticsQuery.data ?? {
     total: 0,

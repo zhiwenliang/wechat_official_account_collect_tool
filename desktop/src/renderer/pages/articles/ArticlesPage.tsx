@@ -1,10 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
+import { useRef } from "react";
 
 import { ArticlesTable } from "../../components/ArticlesTable";
 import { getArticles } from "../../lib/api";
 import { useArticlesViewStore } from "../../state/app-store";
 
+function getQueryErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "unknown error";
+}
+
 export function ArticlesPage() {
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const {
     status,
     draftSearch,
@@ -27,6 +33,27 @@ export function ArticlesPage() {
         pageSize,
       }),
   });
+
+  if (articlesQuery.isPending) {
+    return (
+      <section className="shell__hero" aria-label="Articles">
+        <p className="shell__eyebrow">Articles</p>
+        <h2>文章管理</h2>
+        <p className="shell__description">文章列表加载中</p>
+      </section>
+    );
+  }
+
+  if (articlesQuery.error) {
+    return (
+      <section className="shell__hero" aria-label="Articles">
+        <p className="shell__eyebrow">Articles</p>
+        <h2>文章管理</h2>
+        <p className="shell__description">文章列表加载失败</p>
+        <p className="shell__description">{getQueryErrorMessage(articlesQuery.error)}</p>
+      </section>
+    );
+  }
 
   const payload = articlesQuery.data ?? {
     total: 0,
@@ -62,14 +89,19 @@ export function ArticlesPage() {
         <label className="toolbar__field toolbar__field--grow">
           <span>搜索</span>
           <input
+            ref={searchInputRef}
             name="article-search"
-            value={draftSearch}
+            defaultValue={draftSearch}
             placeholder="搜索标题或链接"
-            onInput={(event) => setDraftSearch((event.target as HTMLInputElement).value)}
+            onChange={(event) => setDraftSearch((event.target as HTMLInputElement).value)}
           />
         </label>
 
-        <button name="article-search-submit" type="button" onClick={() => submitSearch()}>
+        <button
+          name="article-search-submit"
+          type="button"
+          onClick={() => submitSearch(searchInputRef.current?.value)}
+        >
           搜索
         </button>
       </div>

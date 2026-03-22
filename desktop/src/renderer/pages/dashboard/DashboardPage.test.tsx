@@ -136,4 +136,38 @@ describe("DashboardPage", () => {
       client.clear();
     });
   });
+
+  it("surfaces backend query failures instead of rendering an empty dashboard", async () => {
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: {
+        getBackendStatus: vi.fn().mockResolvedValue({
+          state: "ready",
+          baseUrl: "http://desktop-backend",
+          health: {
+            status: "ok",
+            service: "desktop-backend",
+          },
+        }),
+      },
+    });
+
+    vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new Error("backend unavailable"))));
+
+    const { container, root, client } = await renderDashboard();
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(container.textContent).toContain("概览数据加载失败");
+    expect(container.textContent).toContain("backend unavailable");
+
+    await act(async () => {
+      root.unmount();
+      client.clear();
+    });
+  });
 });

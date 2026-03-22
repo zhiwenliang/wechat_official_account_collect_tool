@@ -115,4 +115,50 @@ describe("renderBackendCopy", () => {
       root.unmount();
     });
   });
+
+  it("does not mount data pages until the backend is ready", async () => {
+    vi.useFakeTimers();
+    let invocationCount = 0;
+    const getBackendStatus = vi.fn().mockImplementation(() => {
+      invocationCount += 1;
+      if (invocationCount === 1) {
+        return Promise.resolve({
+          state: "starting",
+          message: "正在启动 Python sidecar",
+        });
+      }
+
+      return Promise.resolve({
+        state: "ready",
+        baseUrl: "http://desktop-backend",
+        health: {
+          status: "ok",
+          service: "desktop-backend",
+        },
+      });
+    });
+
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: {
+        getBackendStatus,
+      },
+    });
+
+    const { container, root } = await renderApp();
+    expect(container.textContent).not.toContain("Dashboard stub");
+    expect(container.textContent).not.toContain("Articles stub");
+
+    await act(async () => {
+      vi.advanceTimersByTime(3000);
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("Dashboard stub");
+    expect(container.textContent).toContain("Articles stub");
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
 });

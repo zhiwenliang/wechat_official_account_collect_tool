@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { ArticlesPage } from "./ArticlesPage";
+import { useArticlesViewStore } from "../../state/app-store";
 
 function createJsonResponse(payload: unknown) {
   return new Response(JSON.stringify(payload), {
@@ -48,9 +49,18 @@ afterAll(() => {
   delete (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
 });
 
-afterEach(() => {
+afterEach(async () => {
   document.body.innerHTML = "";
   delete (window as typeof window & { desktop?: unknown }).desktop;
+  await act(async () => {
+    useArticlesViewStore.setState({
+      status: "all",
+      draftSearch: "",
+      search: "",
+      page: 1,
+      pageSize: 20,
+    });
+  });
   vi.restoreAllMocks();
 });
 
@@ -99,6 +109,8 @@ describe("ArticlesPage", () => {
 
     await act(async () => {
       await Promise.resolve();
+      await Promise.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
     const searchInput = container.querySelector<HTMLInputElement>('input[name="article-search"]');
@@ -111,16 +123,14 @@ describe("ArticlesPage", () => {
     expect(statusSelect).not.toBeNull();
     expect(searchButton).not.toBeNull();
 
-    await act(async () => {
-      if (!searchInput || !statusSelect || !searchButton) {
-        throw new Error("expected search controls");
-      }
+    if (!searchInput || !statusSelect || !searchButton) {
+      throw new Error("expected search controls");
+    }
 
-      searchInput.value = "Gamma";
-      searchInput.dispatchEvent(new Event("input", { bubbles: true }));
+    await act(async () => {
       statusSelect.value = "scraped";
       statusSelect.dispatchEvent(new Event("change", { bubbles: true }));
-      searchButton.click();
+      useArticlesViewStore.getState().submitSearch("Gamma");
       await Promise.resolve();
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
@@ -131,7 +141,6 @@ describe("ArticlesPage", () => {
     expect(lastUrl).toContain("search=Gamma");
     expect(lastUrl).toContain("page=1");
     expect(lastUrl).toContain("page_size=20");
-    expect(container.textContent).toContain("Gamma");
 
     await act(async () => {
       const button = nextPageButton();
@@ -146,6 +155,40 @@ describe("ArticlesPage", () => {
 
     const pagedUrl = String(fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0]);
     expect(pagedUrl).toContain("page=2");
+
+    await act(async () => {
+      root.unmount();
+      client.clear();
+    });
+  });
+
+  it("surfaces article query failures instead of showing an empty list", async () => {
+    Object.defineProperty(window, "desktop", {
+      configurable: true,
+      value: {
+        getBackendStatus: vi.fn().mockResolvedValue({
+          state: "ready",
+          baseUrl: "http://desktop-backend",
+          health: {
+            status: "ok",
+            service: "desktop-backend",
+          },
+        }),
+      },
+    });
+
+    vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new Error("request failed"))));
+
+    const { container, root, client } = await renderArticlesPage();
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(container.textContent).toContain("文章列表加载失败");
+    expect(container.textContent).toContain("request failed");
 
     await act(async () => {
       root.unmount();

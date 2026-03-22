@@ -8,7 +8,7 @@ type ArticlesViewState = {
   pageSize: number;
   setStatus: (status: string) => void;
   setDraftSearch: (search: string) => void;
-  submitSearch: () => void;
+  submitSearch: (search?: string) => void;
   setPage: (page: number) => void;
 };
 
@@ -20,9 +20,10 @@ export const useArticlesViewStore = create<ArticlesViewState>((set) => ({
   pageSize: 20,
   setStatus: (status) => set({ status, page: 1 }),
   setDraftSearch: (draftSearch) => set({ draftSearch }),
-  submitSearch: () =>
+  submitSearch: (search) =>
     set((state) => ({
-      search: state.draftSearch,
+      draftSearch: search ?? state.draftSearch,
+      search: search ?? state.draftSearch,
       page: 1,
     })),
   setPage: (page) => set({ page }),

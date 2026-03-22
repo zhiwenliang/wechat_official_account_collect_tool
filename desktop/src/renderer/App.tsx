@@ -72,6 +72,7 @@ export function App() {
   }, []);
 
   const backendCopy = renderBackendCopy(backendStatus);
+  const isBackendReady = backendStatus.state === "ready";
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -97,13 +98,22 @@ export function App() {
           <a href="#collect">采集</a>
           <a href="#scrape">抓取</a>
         </nav>
-
-        <div id="dashboard">
-          <DashboardPage />
-        </div>
-        <div id="articles">
-          <ArticlesPage />
-        </div>
+        {isBackendReady ? (
+          <>
+            <div id="dashboard">
+              <DashboardPage />
+            </div>
+            <div id="articles">
+              <ArticlesPage />
+            </div>
+          </>
+        ) : (
+          <section className="shell__hero" aria-label="页面加载状态">
+            <p className="shell__eyebrow">Workspace</p>
+            <h2>等待后端就绪</h2>
+            <p className="shell__description">Python sidecar 就绪后再加载概览和文章页。</p>
+          </section>
+        )}
       </main>
     </QueryClientProvider>
   );
