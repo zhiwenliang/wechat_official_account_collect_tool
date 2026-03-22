@@ -14,6 +14,7 @@ export function ArticlesPage() {
     setStatus,
     setDraftSearch,
     submitSearch,
+    setPage,
   } = useArticlesViewStore();
 
   const articlesQuery = useQuery({
@@ -33,6 +34,9 @@ export function ArticlesPage() {
     page_size: pageSize,
     items: [],
   };
+  const totalPages = Math.max(1, Math.ceil(payload.total / payload.page_size));
+  const isFirstPage = payload.page <= 1;
+  const isLastPage = payload.page >= totalPages;
 
   return (
     <section className="shell__hero" aria-label="Articles">
@@ -72,6 +76,27 @@ export function ArticlesPage() {
 
       <p className="shell__description">共 {payload.total} 篇，当前第 {payload.page} 页</p>
       <ArticlesTable articles={payload.items} />
+      <div className="pagination">
+        <button
+          name="article-page-prev"
+          type="button"
+          disabled={isFirstPage}
+          onClick={() => setPage(payload.page - 1)}
+        >
+          上一页
+        </button>
+        <span>
+          第 {payload.page} / {totalPages} 页
+        </span>
+        <button
+          name="article-page-next"
+          type="button"
+          disabled={isLastPage}
+          onClick={() => setPage(payload.page + 1)}
+        >
+          下一页
+        </button>
+      </div>
     </section>
   );
 }

@@ -21,7 +21,9 @@ export function DashboardPage() {
     empty_content: 0,
     failed_urls: [],
   };
-  const recentArticles = recentArticlesQuery.data ?? [];
+  const recentArticles = [...(recentArticlesQuery.data ?? [])].sort((left, right) =>
+    right.publish_time.localeCompare(left.publish_time),
+  );
 
   return (
     <section className="shell__hero" aria-label="Dashboard">

@@ -91,17 +91,17 @@ describe("DashboardPage", () => {
           return Promise.resolve(
             createJsonResponse([
               {
-                id: 3,
-                title: "Gamma",
-                publish_time: "2024-01-03 08:00:00",
-                status: "scraped",
-                is_empty_content: 0,
-              },
-              {
                 id: 2,
                 title: "Beta",
                 publish_time: "2024-01-02 08:00:00",
                 status: "pending",
+                is_empty_content: 0,
+              },
+              {
+                id: 3,
+                title: "Gamma",
+                publish_time: "2024-01-03 08:00:00",
+                status: "scraped",
                 is_empty_content: 0,
               },
             ]),
@@ -126,6 +126,10 @@ describe("DashboardPage", () => {
     expect(container.textContent).toContain("最近文章");
     expect(container.textContent).toContain("Gamma");
     expect(container.textContent).toContain("Beta");
+    const recentItems = Array.from(
+      container.querySelectorAll<HTMLElement>(".recent-list__item strong"),
+    ).map((element) => element.textContent);
+    expect(recentItems).toEqual(["Gamma", "Beta"]);
 
     await act(async () => {
       root.unmount();

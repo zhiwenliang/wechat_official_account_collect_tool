@@ -241,6 +241,30 @@ a {
   color: #94a3b8;
 }
 
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.pagination button {
+  min-height: 40px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(15, 23, 42, 0.72);
+  color: #f8fafc;
+  padding: 0 14px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.pagination button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 @media (max-width: 900px) {
   .shell {
     padding: 24px;

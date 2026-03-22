@@ -72,16 +72,17 @@ describe("ArticlesPage", () => {
 
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
       const url = String(input);
+      const isSecondPage = url.includes("page=2");
       return Promise.resolve(
         createJsonResponse({
-          total: 1,
-          page: 1,
+          total: 45,
+          page: isSecondPage ? 2 : 1,
           page_size: 20,
           items: [
             {
               id: 9,
-              url: "https://example.com/gamma",
-              title: "Gamma",
+              url: isSecondPage ? "https://example.com/delta" : "https://example.com/gamma",
+              title: isSecondPage ? "Delta" : "Gamma",
               publish_time: "2024-01-03 08:00:00",
               scraped_at: "",
               file_path: "",
@@ -103,6 +104,8 @@ describe("ArticlesPage", () => {
     const searchInput = container.querySelector<HTMLInputElement>('input[name="article-search"]');
     const statusSelect = container.querySelector<HTMLSelectElement>('select[name="article-status"]');
     const searchButton = container.querySelector<HTMLButtonElement>('button[name="article-search-submit"]');
+    const nextPageButton = () =>
+      container.querySelector<HTMLButtonElement>('button[name="article-page-next"]');
 
     expect(searchInput).not.toBeNull();
     expect(statusSelect).not.toBeNull();
@@ -129,6 +132,20 @@ describe("ArticlesPage", () => {
     expect(lastUrl).toContain("page=1");
     expect(lastUrl).toContain("page_size=20");
     expect(container.textContent).toContain("Gamma");
+
+    await act(async () => {
+      const button = nextPageButton();
+      if (!button) {
+        throw new Error("expected next page button");
+      }
+
+      button.click();
+      await Promise.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const pagedUrl = String(fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0]);
+    expect(pagedUrl).toContain("page=2");
 
     await act(async () => {
       root.unmount();
