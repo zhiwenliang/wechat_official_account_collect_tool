@@ -61,6 +61,15 @@ conda remove -n wechat-scraper --all
 - 启动桌面端开发模式：`npm --prefix desktop run dev`
 - `desktop/` 里的 Electron 只负责桌面壳层，Python 侧仍然保留现有的采集与抓取实现，后续会通过 sidecar 方式接入，而不是把业务逻辑重写进前端。
 
+### Python sidecar 开发启动
+
+```bash
+conda activate wechat-scraper
+python -m desktop_backend.app
+```
+
+默认会启动一个轻量 HTTP 服务，提供 `GET /health` 和查询接口。
+
 ## 快速开始
 
 ### 完整工作流程
