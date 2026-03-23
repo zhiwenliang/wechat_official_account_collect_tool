@@ -28,6 +28,7 @@ class Database:
             CREATE TABLE IF NOT EXISTS articles (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 title TEXT,
+                account_name TEXT,
                 url TEXT UNIQUE NOT NULL,
                 publish_time TEXT,
                 scraped_at TEXT,
@@ -50,6 +51,7 @@ class Database:
         existing_columns = {row[1] for row in cursor.fetchall()}
 
         required_columns = {
+            "account_name": "TEXT",
             "content_html": "TEXT",
             "content_markdown": "TEXT",
         }

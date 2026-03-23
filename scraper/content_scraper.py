@@ -42,6 +42,21 @@ class ContentScraper:
             print(f"  警告: 时间解析失败: {time_str}, 错误: {e}")
             return time_str
 
+    def _extract_text_if_present(self, page, selector):
+        """Return trimmed text for a selector when present."""
+        locator = page.locator(selector)
+        if locator.count() == 0:
+            return ""
+        return locator.first.inner_text().strip()
+
+    def _extract_account_name(self, page):
+        """Extract the WeChat account name from the article page."""
+        for selector in ("#js_name", "#profileBt a"):
+            account_name = self._extract_text_if_present(page, selector)
+            if account_name:
+                return account_name
+        return ""
+
     def start(self):
         """启动浏览器"""
         self.playwright = sync_playwright().start()
@@ -77,6 +92,7 @@ class ContentScraper:
                 # 提取发布时间
                 publish_time_raw = self.page.locator('#publish_time').inner_text()
                 publish_time = self._parse_publish_time(publish_time_raw)
+                account_name = self._extract_account_name(self.page)
 
                 # 滚动页面加载所有图片
                 self._scroll_to_load_images()
@@ -86,6 +102,7 @@ class ContentScraper:
 
                 return {
                     'title': title.strip(),
+                    'account_name': account_name,
                     'url': url,
                     'publish_time': publish_time,
                     'content_html': content_html,

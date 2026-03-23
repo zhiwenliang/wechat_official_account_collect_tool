@@ -164,6 +164,12 @@ class FileStore:
 
     def _generate_html(self, article_data):
         """生成完整的HTML文件"""
+        account_name = article_data.get('account_name')
+        account_name_html = (
+            f"        <p>公众号: {account_name}</p>\n"
+            if account_name
+            else ""
+        )
         html = f"""<!DOCTYPE html>
 <html>
 <head>
@@ -179,7 +185,7 @@ class FileStore:
 <body>
     <h1>{article_data['title']}</h1>
     <div class="meta">
-        <p>发布时间: {article_data.get('publish_time', 'N/A')}</p>
+{account_name_html}        <p>发布时间: {article_data.get('publish_time', 'N/A')}</p>
         <p>链接: <a href="{article_data['url']}">{article_data['url']}</a></p>
     </div>
     <div id="js_content">
@@ -193,11 +199,13 @@ class FileStore:
         """将文章内容渲染为Markdown文档"""
         # 转换HTML内容为Markdown
         content_md = md(article_data.get('content_html', ''), heading_style="ATX")
+        account_name = article_data.get('account_name')
+        account_name_line = f"**公众号**: {account_name}\n" if account_name else ""
 
         # 生成完整的Markdown文档
         markdown = f"""# {article_data.get('title') or '无标题'}
 
-**发布时间**: {article_data.get('publish_time', 'N/A')}
+{account_name_line}**发布时间**: {article_data.get('publish_time', 'N/A')}
 **原文链接**: {article_data.get('url', '')}
 
 ---

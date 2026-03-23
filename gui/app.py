@@ -1957,7 +1957,7 @@ class WeChatScraperGUI:
         conn = sqlite3.connect(self.db.db_path)
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT id, title, url, publish_time, scraped_at, status, file_path, content_html, content_markdown
+            SELECT id, title, account_name, url, publish_time, scraped_at, status, file_path, content_html, content_markdown
             FROM articles WHERE id = ?
         """, (article_id,))
         row = cursor.fetchone()
@@ -1969,13 +1969,14 @@ class WeChatScraperGUI:
         return {
             'id': row[0],
             'title': row[1],
-            'url': row[2],
-            'publish_time': row[3],
-            'scraped_at': row[4],
-            'status': row[5],
-            'file_path': row[6],
-            'content_html': row[7],
-            'content_markdown': row[8]
+            'account_name': row[2],
+            'url': row[3],
+            'publish_time': row[4],
+            'scraped_at': row[5],
+            'status': row[6],
+            'file_path': row[7],
+            'content_html': row[8],
+            'content_markdown': row[9]
         }
 
     def _format_article_status(self, status, is_empty_content=False):

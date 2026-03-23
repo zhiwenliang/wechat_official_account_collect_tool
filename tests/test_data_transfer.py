@@ -27,6 +27,7 @@ def create_articles_db(path: Path, title: str) -> None:
         CREATE TABLE articles (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT,
+            account_name TEXT,
             url TEXT UNIQUE NOT NULL,
             publish_time TEXT,
             scraped_at TEXT,

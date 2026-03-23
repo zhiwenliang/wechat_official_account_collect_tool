@@ -281,6 +281,7 @@ def run_scrape_workflow(
                 db.update_article(
                     url,
                     title=article_data['title'],
+                    account_name=article_data.get('account_name', ''),
                     publish_time=article_data['publish_time'],
                     scraped_at=article_data['scraped_at'],
                     file_path=file_path,

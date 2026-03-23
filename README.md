@@ -56,12 +56,13 @@ conda remove -n wechat-scraper --all
 
 ## 桌面端工作区
 
-- Node.js 建议使用 20.x 或更新的稳定版本。
-- 先安装桌面端依赖：`npm --prefix desktop install`
+仓库包含独立的 `desktop/` 工作区，用于 Electron + React + TypeScript 桌面界面；采集、抓取、校准、数据库等核心能力仍然保留在 Python 侧，由本地 sidecar 提供服务。
+
+- Node.js 建议使用 20.x 或更新的稳定版本
+- 安装依赖：`npm --prefix desktop install`
 - 开发模式启动 Electron：`npm --prefix desktop run dev`
 - 预览构建结果：`npm --prefix desktop run build`
 - 生成可分发包：`npm --prefix desktop run package:desktop`
-- `desktop/` 里的 Electron 只负责桌面壳层，Python 侧仍然保留现有的采集与抓取实现。
 
 ### Python sidecar
 
