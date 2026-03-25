@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Play, Square, Crosshair } from "lucide-react";
 
 import { TaskLogPanel } from "../../components/TaskLogPanel";
 import {
@@ -8,8 +9,13 @@ import {
   stopTask,
   type CalibrationAction,
 } from "../../lib/api";
-import type { TaskEvent, TaskPrompt, TaskSnapshotPayload } from "../../lib/task-events";
+import type {
+  TaskEvent,
+  TaskPrompt,
+  TaskSnapshotPayload,
+} from "../../lib/task-events";
 import { mergeTaskEvents, summarizeTaskSession } from "../../lib/task-events";
+import { cn } from "../../lib/utils";
 
 const CALIBRATION_POLL_INTERVAL_MS = 1000;
 
@@ -57,7 +63,8 @@ function useCalibrationTaskWorkflow() {
   const [isStarting, setIsStarting] = useState(false);
   const [isResponding, setIsResponding] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
-  const [selectedAction, setSelectedAction] = useState<CalibrationAction | null>(null);
+  const [selectedAction, setSelectedAction] =
+    useState<CalibrationAction | null>(null);
 
   useEffect(() => {
     if (!taskId) {
@@ -74,7 +81,9 @@ function useCalibrationTaskWorkflow() {
         }
 
         setSnapshot(nextSnapshot);
-        setEvents((current) => mergeTaskEvents(current, nextSnapshot.events));
+        setEvents((current) =>
+          mergeTaskEvents(current, nextSnapshot.events),
+        );
 
         if (!nextSnapshot.active) {
           setIsStopping(false);
@@ -163,7 +172,10 @@ function useCalibrationTaskWorkflow() {
   };
 }
 
-function renderPromptTitle(prompt: TaskPrompt | null | undefined, selectedAction: CalibrationAction | null) {
+function renderPromptTitle(
+  prompt: TaskPrompt | null | undefined,
+  selectedAction: CalibrationAction | null,
+) {
   if (prompt) {
     return prompt.title;
   }
@@ -176,8 +188,18 @@ function renderPromptTitle(prompt: TaskPrompt | null | undefined, selectedAction
 }
 
 export function CalibrationPage() {
-  const { taskId, snapshot, events, isStarting, isResponding, isStopping, selectedAction, startAction, respond, cancel } =
-    useCalibrationTaskWorkflow();
+  const {
+    taskId,
+    snapshot,
+    events,
+    isStarting,
+    isResponding,
+    isStopping,
+    selectedAction,
+    startAction,
+    respond,
+    cancel,
+  } = useCalibrationTaskWorkflow();
   const prompt = snapshot?.prompt ?? null;
   const summary = summarizeTaskSession(snapshot, {
     isStarting,
@@ -192,21 +214,30 @@ export function CalibrationPage() {
   }, [prompt?.kind, prompt?.step, prompt?.default_value]);
 
   const parsedIntegerValue =
-    prompt?.kind === "integer" && integerValue.trim() !== "" ? Number.parseInt(integerValue, 10) : Number.NaN;
+    prompt?.kind === "integer" && integerValue.trim() !== ""
+      ? Number.parseInt(integerValue, 10)
+      : Number.NaN;
   const isIntegerPromptValid =
     prompt?.kind !== "integer" ||
-    (Number.isInteger(parsedIntegerValue) && parsedIntegerValue >= (prompt.min_value ?? 1));
-  const controlsLocked = isStarting || isResponding || isStopping || (taskId !== null && (snapshot?.active ?? true));
+    (Number.isInteger(parsedIntegerValue) &&
+      parsedIntegerValue >= (prompt.min_value ?? 1));
+  const controlsLocked =
+    isStarting ||
+    isResponding ||
+    isStopping ||
+    (taskId !== null && (snapshot?.active ?? true));
   const promptButtonsDisabled = isResponding || isStopping;
   const activePromptTitle = renderPromptTitle(prompt, selectedAction);
 
   return (
-    <section className="shell__hero task-page" aria-label="坐标校准">
-      <div className="task-panel__header">
+    <section aria-label="坐标校准" className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="shell__eyebrow">Calibration</p>
-          <h2>坐标校准</h2>
-          <p className="shell__description">保持 Tkinter 的按项校准模型，每次只运行一个校准动作或测试。</p>
+          <h1 className="text-xl font-bold text-gray-900">坐标校准</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            每次只运行一个校准动作或测试
+          </p>
         </div>
         <button
           type="button"
@@ -215,16 +246,27 @@ export function CalibrationPage() {
           onClick={() => {
             void startAction("test");
           }}
+          className="inline-flex h-9 items-center gap-2 rounded-lg bg-gray-900 px-4 text-sm font-medium text-white shadow-sm transition hover:bg-gray-800 active:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-40"
         >
+          <Play className="h-3.5 w-3.5" />
           运行测试
         </button>
       </div>
 
-      <div className="calibration-grid">
+      {/* Calibration Items Grid */}
+      <div className="calibration-grid grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {CALIBRATION_ITEMS.map((item) => (
-          <article key={item.action} className="task-panel calibration-card">
-            <h3>{item.title}</h3>
-            <p className="task-status-meta">{item.description}</p>
+          <article
+            key={item.action}
+            className="calibration-card rounded-xl border border-gray-200/80 bg-white p-4 shadow-card"
+          >
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+              <Crosshair className="h-3.5 w-3.5 text-blue-500" />
+              {item.title}
+            </h3>
+            <p className="task-status-meta mt-1 text-xs text-gray-500">
+              {item.description}
+            </p>
             <button
               type="button"
               name={`calibration-start-${item.action}`}
@@ -232,6 +274,7 @@ export function CalibrationPage() {
               onClick={() => {
                 void startAction(item.action);
               }}
+              className="mt-3 h-8 w-full rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-700 shadow-sm transition hover:bg-gray-50 active:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
             >
               开始校准
             </button>
@@ -239,18 +282,24 @@ export function CalibrationPage() {
         ))}
       </div>
 
-      <div className="task-grid">
-        <section className="task-panel">
+      {/* Active Task + Log */}
+      <div className="task-grid grid gap-4 lg:grid-cols-2">
+        <section className="task-panel rounded-xl border border-gray-200/80 bg-white p-5 shadow-card">
           <div className="task-panel__header">
-            <div>
-              <h3>{activePromptTitle}</h3>
-              <p>{summary.title}</p>
-            </div>
+            <h3 className="text-sm font-semibold text-gray-900">
+              {activePromptTitle}
+            </h3>
+            <p className="mt-0.5 text-xs text-gray-500">{summary.title}</p>
           </div>
-          <p className="task-status-meta">{prompt?.message ?? summary.description}</p>
+          <p className="task-status-meta mt-3 text-sm text-gray-600">
+            {prompt?.message ?? summary.description}
+          </p>
+
           {prompt?.kind === "integer" ? (
-            <label className="calibration-input">
-              <span>输入数值</span>
+            <label className="calibration-input mt-3 block">
+              <span className="mb-1 block text-xs font-medium text-gray-500">
+                输入数值
+              </span>
               <input
                 type="number"
                 min={prompt.min_value ?? 1}
@@ -258,10 +307,12 @@ export function CalibrationPage() {
                 onChange={(event) => {
                   setIntegerValue(event.target.value);
                 }}
+                className="h-9 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 shadow-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
               />
             </label>
           ) : null}
-          <div className="task-actions">
+
+          <div className="task-actions mt-4 flex flex-wrap gap-2">
             {prompt?.kind === "position" ? (
               <button
                 type="button"
@@ -270,6 +321,7 @@ export function CalibrationPage() {
                 onClick={() => {
                   void respond({ response: "record" });
                 }}
+                className="h-8 rounded-lg bg-blue-500 px-4 text-xs font-medium text-white shadow-sm transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 记录当前位置
               </button>
@@ -281,9 +333,14 @@ export function CalibrationPage() {
                 name="calibration-prompt-continue"
                 disabled={promptButtonsDisabled || !isIntegerPromptValid}
                 onClick={() => {
-                  const value = prompt.kind === "integer" ? parsedIntegerValue : undefined;
-                  void respond({ response: "continue", value: Number.isInteger(value) ? value : undefined });
+                  const value =
+                    prompt.kind === "integer" ? parsedIntegerValue : undefined;
+                  void respond({
+                    response: "continue",
+                    value: Number.isInteger(value) ? value : undefined,
+                  });
                 }}
+                className="h-8 rounded-lg bg-blue-500 px-4 text-xs font-medium text-white shadow-sm transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 继续
               </button>
@@ -298,6 +355,7 @@ export function CalibrationPage() {
                   onClick={() => {
                     void respond({ response: "confirm", accepted: true });
                   }}
+                  className="h-8 rounded-lg bg-green-500 px-4 text-xs font-medium text-white shadow-sm transition hover:bg-green-600 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   {prompt.confirm_label ?? "是"}
                 </button>
@@ -308,6 +366,7 @@ export function CalibrationPage() {
                   onClick={() => {
                     void respond({ response: "confirm", accepted: false });
                   }}
+                  className="h-8 rounded-lg border border-gray-200 bg-white px-4 text-xs font-medium text-gray-700 shadow-sm transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   {prompt.reject_label ?? "否"}
                 </button>
@@ -322,14 +381,19 @@ export function CalibrationPage() {
                 onClick={() => {
                   void cancel();
                 }}
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-red-200 bg-white px-4 text-xs font-medium text-red-600 shadow-sm transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
               >
+                <Square className="h-3 w-3" />
                 取消
               </button>
             ) : null}
           </div>
         </section>
 
-        <TaskLogPanel events={events} emptyMessage="开始任一校准项后，步骤日志会显示在这里。" />
+        <TaskLogPanel
+          events={events}
+          emptyMessage="开始任一校准项后，步骤日志会显示在这里。"
+        />
       </div>
     </section>
   );

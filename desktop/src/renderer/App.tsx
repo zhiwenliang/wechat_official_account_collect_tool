@@ -1,7 +1,16 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import {
+  LayoutDashboard,
+  FileText,
+  Crosshair,
+  Download,
+  Scissors,
+  Circle,
+} from "lucide-react";
 
 import { getBackendStatus } from "./lib/api";
+import { cn } from "./lib/utils";
 import type { BackendStatus } from "./lib/task-events";
 import { ArticlesPage } from "./pages/articles/ArticlesPage";
 import { DashboardPage } from "./pages/dashboard/DashboardPage";
@@ -36,8 +45,48 @@ export function renderBackendCopy(status: BackendStatus) {
   }
 }
 
+type Page = "dashboard" | "articles" | "calibration" | "collect" | "scrape";
+
+const NAV_ITEMS: Array<{
+  id: Page;
+  label: string;
+  icon: typeof LayoutDashboard;
+}> = [
+  { id: "dashboard", label: "概览", icon: LayoutDashboard },
+  { id: "articles", label: "文章", icon: FileText },
+  { id: "calibration", label: "校准", icon: Crosshair },
+  { id: "collect", label: "采集", icon: Download },
+  { id: "scrape", label: "抓取", icon: Scissors },
+];
+
+function BackendStatusDot({ status }: { status: BackendStatus }) {
+  const color =
+    status.state === "ready"
+      ? "text-green-500"
+      : status.state === "starting"
+        ? "text-amber-400"
+        : "text-red-500";
+  const copy = renderBackendCopy(status);
+
+  return (
+    <div className="px-3 py-2 text-xs text-gray-500">
+      <div className="flex items-center gap-2">
+        <Circle className={cn("h-2.5 w-2.5 fill-current", color)} />
+        <span className="truncate">{copy.title}</span>
+      </div>
+      {copy.description ? (
+        <p className="mt-0.5 truncate pl-[18px] text-[11px] text-gray-400">
+          {copy.description}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export function App() {
-  const [backendStatus, setBackendStatus] = useState<BackendStatus>(INITIAL_STATUS);
+  const [backendStatus, setBackendStatus] =
+    useState<BackendStatus>(INITIAL_STATUS);
+  const [activePage, setActivePage] = useState<Page>("dashboard");
 
   useEffect(() => {
     let isActive = true;
@@ -56,7 +105,10 @@ export function App() {
 
         setBackendStatus({
           state: "error",
-          message: error instanceof Error ? error.message : "Desktop bridge unavailable",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Desktop bridge unavailable",
         });
       }
     };
@@ -74,60 +126,112 @@ export function App() {
     };
   }, []);
 
-  const backendCopy = renderBackendCopy(backendStatus);
   const isBackendReady = backendStatus.state === "ready";
 
   return (
     <QueryClientProvider client={queryClient}>
-      <main className="shell">
-        <section className="shell__hero" aria-label="桌面工作区">
-          <p className="shell__eyebrow">Electron Desktop Workspace</p>
-          <h1>微信公众号文章采集工具</h1>
-          <p className="shell__description">
-            新桌面 UI 现在已经接入概览、文章管理、采集、抓取和按项坐标校准流程。
-          </p>
-        </section>
+      <div className="flex h-screen overflow-hidden bg-[#f5f5f7]">
+        {/* ── Sidebar ── */}
+        <aside className="flex w-52 flex-col border-r border-gray-200/80 bg-[#fbfbfd]">
+          <div className="flex h-12 items-center px-4 pt-1 text-sm font-semibold text-gray-800 select-none"
+               style={{ WebkitAppRegion: "drag" } as React.CSSProperties}>
+            微信文章采集
+          </div>
 
-        <section className="shell__hero" aria-label="后端状态" role="status">
-          <p className="shell__eyebrow">Python Sidecar</p>
-          <h2>后端状态</h2>
-          <p className="shell__description">{backendCopy.title}</p>
-          <p className="shell__description">{backendCopy.description}</p>
-        </section>
+          <nav className="flex-1 space-y-0.5 px-2 pt-1" aria-label="主导航">
+            {NAV_ITEMS.map((item) => {
+              const Icon = item.icon;
+              const isActive = activePage === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setActivePage(item.id)}
+                  className={cn(
+                    "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-colors",
+                    isActive
+                      ? "bg-gray-200/70 text-gray-900"
+                      : "text-gray-600 hover:bg-gray-100 hover:text-gray-900",
+                  )}
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  {item.label}
+                </button>
+              );
+            })}
+          </nav>
 
-        <nav className="shell__nav" aria-label="主导航">
-          <a href="#dashboard">概览</a>
-          <a href="#articles">文章</a>
-          <a href="#calibration">校准</a>
-          <a href="#collect">采集</a>
-          <a href="#scrape">抓取</a>
-        </nav>
-        {isBackendReady ? (
-          <>
-            <div id="dashboard">
-              <DashboardPage />
-            </div>
-            <div id="articles">
-              <ArticlesPage />
-            </div>
-            <div id="calibration">
-              <CalibrationPage />
-            </div>
-            <div id="collect">
-              <CollectionPage />
-            </div>
-            <div id="scrape">
-              <ScrapingPage />
-            </div>
-          </>
-        ) : (
-          <section className="shell__hero" aria-label="页面加载状态">
-            <p className="shell__eyebrow">Workspace</p>
-            <h2>等待后端就绪</h2>
-            <p className="shell__description">Python sidecar 就绪后再加载概览和文章页。</p>
-          </section>
-        )}
-      </main>
+          <div className="border-t border-gray-200/80 px-2 py-2">
+            <BackendStatusDot status={backendStatus} />
+          </div>
+        </aside>
+
+        {/* ── Main content ── */}
+        <main className="flex-1 overflow-y-auto">
+          <div className="mx-auto max-w-5xl px-8 py-8">
+            {isBackendReady ? (
+              <>
+                <div
+                  id="dashboard"
+                  className={activePage === "dashboard" ? "" : "hidden"}
+                >
+                  <DashboardPage />
+                </div>
+                <div
+                  id="articles"
+                  className={activePage === "articles" ? "" : "hidden"}
+                >
+                  <ArticlesPage />
+                </div>
+                <div
+                  id="calibration"
+                  className={activePage === "calibration" ? "" : "hidden"}
+                >
+                  <CalibrationPage />
+                </div>
+                <div
+                  id="collect"
+                  className={activePage === "collect" ? "" : "hidden"}
+                >
+                  <CollectionPage />
+                </div>
+                <div
+                  id="scrape"
+                  className={activePage === "scrape" ? "" : "hidden"}
+                >
+                  <ScrapingPage />
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-32 text-center">
+                {backendStatus.state === "error" ? (
+                  <>
+                    <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-red-50">
+                      <Circle className="h-5 w-5 fill-red-400 text-red-400" />
+                    </div>
+                    <h2 className="text-lg font-semibold text-gray-800">
+                      启动失败
+                    </h2>
+                    <p className="mt-1 text-sm text-gray-500">
+                      {backendStatus.message}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div className="mb-4 h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-blue-500" />
+                    <h2 className="text-lg font-semibold text-gray-800">
+                      等待后端就绪
+                    </h2>
+                    <p className="mt-1 text-sm text-gray-500">
+                      Python sidecar 就绪后再加载页面
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        </main>
+      </div>
     </QueryClientProvider>
   );
 }

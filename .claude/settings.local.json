@@ -8,7 +8,11 @@
       "Bash(/Users/humuh/source/gongzhonghaohistory/scraper/calibrator.py:*)",
       "Bash(/Users/humuh/source/gongzhonghaohistory/scraper/link_collector.py:*)",
       "Bash(/tmp/scroll_calibration.txt:*)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Bash(npm --version)",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(npm test:*)"
     ]
   }
 }
