@@ -53,6 +53,8 @@ storage/*.db
 storage/*.db-journal
 config/
 *.log
+desktop_backend.err.txt
+desktop_backend.out.txt
 .worktrees/
 !desktop/src/renderer/lib/
 !desktop/src/renderer/lib/**
