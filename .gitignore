@@ -39,6 +39,14 @@ ENV/
 *.swo
 *~
 
+# Node / Electron
+node_modules/
+.npm/
+.pnpm-store/
+.yarn/
+desktop/.vite/
+desktop/dist/
+
 # Project specific
 data/
 storage/*.db
