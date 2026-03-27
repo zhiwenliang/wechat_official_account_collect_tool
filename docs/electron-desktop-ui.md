@@ -1,33 +1,40 @@
-# Electron Desktop UI Release Notes
+# Electron Desktop Release Notes
 
-This document is the release checklist for the Electron desktop shell and the Python sidecar migration path.
+This document describes the supported Electron desktop product and the Python sidecar it depends on.
 
 ## Developer Startup
 
-- Install the desktop dependencies with `npm --prefix desktop install`.
-- Start the Electron shell in dev mode with `npm --prefix desktop run dev`.
-- Start the Python backend sidecar in a separate terminal with `python -m desktop_backend.app`.
-- Keep using the existing Tkinter UI with `python -m gui.main` when you need a fallback during migration.
+- Install frontend dependencies with `npm --prefix desktop install`.
+- Start the Python sidecar with `python -m desktop_backend.app` when you want backend logs in a separate terminal.
+- Start the Electron development app with `npm --prefix desktop run dev`.
+
+## Sidecar Resolution Rules
+
+The Electron main process resolves the backend in this order:
+
+1. `DESKTOP_BACKEND_EXECUTABLE`
+2. `DESKTOP_BACKEND_PYTHON`
+3. Python inside the active Conda environment
+4. A packaged sidecar executable under the Electron resources directory
+
+If the backend cannot be found or fails to start, the Electron app must stay open and show the startup error.
 
 ## Packaged App Behavior
 
-- The Electron shell first honors `DESKTOP_BACKEND_EXECUTABLE`, then `DESKTOP_BACKEND_PYTHON` for development/testing overrides.
-- If no override is set, packaged builds look for a frozen sidecar executable under the Electron resources directory, usually `resources/sidecar/desktop-backend.exe` on Windows.
-- If the sidecar cannot be found or fails to spawn, the desktop UI must stay open and show the startup error instead of failing silently.
-- The sidecar is expected to resolve writable runtime paths through `utils.runtime_env` so config and data move out of the repository checkout when the backend is frozen.
+- Packaged builds look for a frozen sidecar under the Electron resources directory, typically `resources/sidecar/desktop-backend.exe` on Windows.
+- The sidecar resolves runtime config and data paths through `utils.runtime_env`, so packaged builds write outside the repository checkout.
+- Startup failures should be visible both in the UI and in the startup log.
 
 ## Release Checklist
 
 - [ ] `npm --prefix desktop run build` succeeds.
 - [ ] `npm --prefix desktop run package:desktop` succeeds.
-- [ ] The packaged Electron app starts the Python sidecar.
-- [ ] The sidecar resolves runtime config/data paths to the user state directory, not the repo checkout.
-- [ ] Startup failures are visible in the Electron UI and in the startup log.
-- [ ] `python -m gui.main` still works as the migration fallback.
-- [ ] The release notes explain how to point `DESKTOP_BACKEND_EXECUTABLE` at a frozen sidecar when the bundle layout is customized.
+- [ ] The packaged Electron app starts the Python sidecar successfully.
+- [ ] Runtime config and data are written to the user state directory.
+- [ ] Startup failures are visible in the Electron UI and log output.
+- [ ] The release notes explain how to override sidecar discovery with `DESKTOP_BACKEND_EXECUTABLE`.
 
-## Known Migration Limitations
+## Known Limitations
 
-- The Electron release script currently packages the shell, not a signed Python installer.
-- A release pipeline still needs to supply the frozen Python sidecar executable separately or place it at the expected resources path.
-- Tkinter remains the supported fallback until the Electron UI fully covers the migration workflows.
+- The Electron build packages the shell and frontend resources, not a signed Python installer.
+- Release automation still needs to provide the frozen Python sidecar executable or place it at the expected resources path.

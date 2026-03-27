@@ -36,7 +36,7 @@ class LinkCollector:
         if not path.exists():
             raise FileNotFoundError(
                 f"配置文件不存在: {path}\n"
-                f"请先运行: python main.py calibrate"
+                f"请先在桌面应用中完成坐标校准"
             )
 
         with open(path, 'r', encoding='utf-8') as f:
@@ -196,4 +196,3 @@ class LinkCollector:
 
         print("  ✓ 标签已清理\n")
         return True
-

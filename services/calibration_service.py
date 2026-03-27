@@ -1,5 +1,5 @@
 """
-Shared calibration helpers for CLI and GUI flows.
+Shared calibration helpers for desktop-facing flows.
 """
 from __future__ import annotations
 
@@ -92,7 +92,7 @@ def load_required_coordinates_config() -> dict:
     """Load coordinates config or raise if calibration has not been completed yet."""
     path = get_coordinates_path()
     if not path.exists():
-        raise FileNotFoundError(f"配置文件不存在: {path}\n请先运行: python main.py calibrate")
+        raise FileNotFoundError(f"配置文件不存在: {path}\n请先在桌面应用中完成坐标校准")
     return load_coordinates_config()
 
 
@@ -142,7 +142,7 @@ def _click_with_activation(
 
 
 def _working_config(config: Optional[dict] = None) -> dict:
-    """Return a mutable calibration config for GUI item updates."""
+    """Return a mutable calibration config for desktop item updates."""
     return config if config is not None else load_coordinates_config(create_if_missing=False)
 
 
@@ -607,7 +607,7 @@ def run_calibration_flow(
     scroll: ScrollFn,
     get_current_position: GetCurrentPositionFn,
 ) -> Optional[Path]:
-    """Run the shared calibration sequence for CLI or GUI."""
+    """Run the shared calibration sequence for interactive calibration flows."""
     config = load_coordinates_config(create_if_missing=False)
     existing_config = get_coordinates_path().exists()
 
@@ -846,7 +846,7 @@ def run_calibration_flow(
     if mode == "cli":
         log(f"✓ 坐标配置已保存到: {path}")
         log("\n校准完成！")
-        log("提示：可以运行 'python main.py test' 测试校准结果")
+        log("提示：可以在桌面应用的校准页面中运行校准测试")
     else:
         log(f"坐标配置已保存到: {path}")
     return path
