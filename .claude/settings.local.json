@@ -12,7 +12,15 @@
       "Bash(npm --version)",
       "Bash(npm install:*)",
       "Bash(npm run:*)",
-      "Bash(npm test:*)"
+      "Bash(npm test:*)",
+      "Bash(curl -s http://127.0.0.1:18789/health)",
+      "Bash(curl -s http://127.0.0.1:18791/health)",
+      "Bash(lsof -iTCP -sTCP:LISTEN -P -n)",
+      "Bash(npx tsc:*)",
+      "Bash(npx vitest:*)",
+      "Bash(sqlite3:*)",
+      "Bash(chmod:*)",
+      "Bash(cd:*)"
     ]
   }
 }

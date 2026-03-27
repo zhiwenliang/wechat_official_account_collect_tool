@@ -96,6 +96,33 @@ export function getArticles(query: ArticlesQuery) {
   return requestJson<ArticlesPayload>(`/api/articles?${params.toString()}`);
 }
 
+export type CalibrationStatusPayload = Record<string, boolean>;
+
+export type ArticleDetailPayload = {
+  id: number;
+  url: string;
+  title: string;
+  publish_time: string;
+  scraped_at: string;
+  file_path: string;
+  status: string;
+  is_empty_content: number;
+  content_markdown: string;
+};
+
+export function getCalibrationStatus() {
+  return requestJson<CalibrationStatusPayload>("/api/calibration/status");
+}
+
+export function getArticleDetail(id: number) {
+  return requestJson<ArticleDetailPayload>(`/api/article-detail?id=${id}`);
+}
+
+export async function imageProxyUrl(src: string): Promise<string> {
+  const baseUrl = await getBaseUrl();
+  return `${baseUrl}/api/image-proxy?url=${encodeURIComponent(src)}`;
+}
+
 export type TaskStartPayload = {
   task_id: string;
 };

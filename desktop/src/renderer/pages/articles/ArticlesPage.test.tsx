@@ -142,6 +142,12 @@ describe("ArticlesPage", () => {
     expect(lastUrl).toContain("page=1");
     expect(lastUrl).toContain("page_size=20");
 
+    // Wait for react-query to settle after the refetch
+    await act(async () => {
+      await Promise.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
     await act(async () => {
       const button = nextPageButton();
       if (!button) {

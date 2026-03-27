@@ -141,7 +141,7 @@ describe("CollectionPage", () => {
 
     expect(container.textContent).toContain("开始采集链接");
     expect(container.textContent).toContain("任务进度");
-    expect(container.textContent).toContain("1 / 3");
+    expect(container.textContent).toContain("已处理 1");
     expect(container.querySelectorAll(".task-log__item")).toHaveLength(3);
 
     await act(async () => {

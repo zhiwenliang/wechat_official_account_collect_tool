@@ -237,6 +237,21 @@ class Database:
 
         return affected
 
+    def get_article_by_id(self, article_id):
+        """根据ID获取单篇文章详情（含正文）"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, url, title, publish_time, scraped_at, file_path, status,
+                   content_markdown,
+                   CASE WHEN status = 'scraped' AND TRIM(COALESCE(content_html, '')) = '' THEN 1 ELSE 0 END AS is_empty_content
+            FROM articles
+            WHERE id = ?
+        """, (article_id,))
+        row = cursor.fetchone()
+        conn.close()
+        return row
+
     def get_articles_by_ids(self, article_ids):
         """根据ID获取文章基础信息"""
         if not article_ids:

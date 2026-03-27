@@ -1,14 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { ArrowRight, Lightbulb } from "lucide-react";
 
 import { getRecentArticles, getStatistics } from "../../lib/api";
 import { StatisticsCards } from "../../components/StatisticsCards";
+import { ArticleDetailModal } from "../../components/ArticleDetailModal";
 
 function getQueryErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "unknown error";
 }
 
 export function DashboardPage() {
+  const [previewId, setPreviewId] = useState<number | null>(null);
   const statisticsQuery = useQuery({
     queryKey: ["statistics"],
     queryFn: getStatistics,
@@ -76,7 +79,8 @@ export function DashboardPage() {
             {recentArticles.map((article) => (
               <article
                 key={article.id}
-                className="recent-list__item flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2.5"
+                className="recent-list__item flex cursor-pointer items-center justify-between rounded-lg bg-gray-50 px-3 py-2.5 select-none hover:bg-gray-100"
+                onDoubleClick={() => setPreviewId(article.id)}
               >
                 <div className="min-w-0 flex-1">
                   <strong className="block truncate text-sm font-medium text-gray-800">
@@ -117,6 +121,7 @@ export function DashboardPage() {
           </ul>
         </div>
       </div>
+      <ArticleDetailModal articleId={previewId} onClose={() => setPreviewId(null)} />
     </section>
   );
 }

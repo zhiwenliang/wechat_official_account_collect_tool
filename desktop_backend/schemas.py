@@ -29,6 +29,18 @@ class ArticlePayload(TypedDict):
     is_empty_content: int
 
 
+class ArticleDetailPayload(TypedDict):
+    id: int
+    url: str
+    title: str
+    publish_time: str
+    scraped_at: str
+    file_path: str
+    status: str
+    is_empty_content: int
+    content_markdown: str
+
+
 class ArticlesPayload(TypedDict):
     total: int
     page: int
@@ -84,4 +96,19 @@ def build_articles_payload(
         "page": int(page),
         "page_size": int(page_size),
         "items": [build_article_payload(row) for row in items],
+    }
+
+
+def build_article_detail_payload(row: tuple[Any, ...]) -> ArticleDetailPayload:
+    article_id, url, title, publish_time, scraped_at, file_path, status, content_markdown, is_empty_content = row
+    return {
+        "id": int(article_id),
+        "url": url or "",
+        "title": title or "",
+        "publish_time": publish_time or "",
+        "scraped_at": scraped_at or "",
+        "file_path": file_path or "",
+        "status": status or "",
+        "is_empty_content": int(is_empty_content),
+        "content_markdown": content_markdown or "",
     }

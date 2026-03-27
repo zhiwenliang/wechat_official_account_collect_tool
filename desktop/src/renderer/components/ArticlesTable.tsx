@@ -3,6 +3,7 @@ import { cn } from "../lib/utils";
 
 type ArticlesTableProps = {
   articles: ArticlePayload[];
+  onArticleDoubleClick?: (article: ArticlePayload) => void;
 };
 
 function statusBadge(status: string) {
@@ -18,7 +19,7 @@ function statusBadge(status: string) {
   }
 }
 
-export function ArticlesTable({ articles }: ArticlesTableProps) {
+export function ArticlesTable({ articles, onArticleDoubleClick }: ArticlesTableProps) {
   return (
     <div className="articles-table overflow-hidden rounded-xl border border-gray-200/80 bg-white shadow-card">
       {/* Header */}
@@ -31,8 +32,9 @@ export function ArticlesTable({ articles }: ArticlesTableProps) {
       {/* Rows */}
       {articles.map((article) => (
         <div
-          className="articles-table__row grid grid-cols-[minmax(280px,2fr)_100px_160px] items-center gap-4 border-b border-gray-50 px-5 py-3 transition-colors last:border-b-0 hover:bg-gray-50/60 max-sm:grid-cols-1"
+          className="articles-table__row grid grid-cols-[minmax(280px,2fr)_100px_160px] items-center gap-4 border-b border-gray-50 px-5 py-3 transition-colors last:border-b-0 hover:bg-gray-50/60 max-sm:grid-cols-1 cursor-pointer select-none"
           key={article.id}
+          onDoubleClick={() => onArticleDoubleClick?.(article)}
         >
           <div className="min-w-0">
             <strong className="block truncate text-sm font-medium text-gray-900">

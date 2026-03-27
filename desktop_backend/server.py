@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import json
 import threading
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Callable
 from urllib.parse import parse_qs, urlsplit
 
 from desktop_backend.query_handlers import (
+    get_article_detail_handler,
     get_articles_handler,
+    get_calibration_status_handler,
     get_recent_articles_handler,
     get_statistics_handler,
 )
@@ -65,6 +68,11 @@ class DesktopBackendServer:
             sort_column=query.get("sort_column", [None])[0],
             descending=_parse_bool(query, "descending"),
         )
+        self._routes[("GET", "/api/calibration/status")] = lambda _query: get_calibration_status_handler()
+        self._routes[("GET", "/api/article-detail")] = lambda query: (
+            get_article_detail_handler(db=self.db, article_id=_parse_int(query, "id", 0))
+            or {"status": "error", "message": "article not found"}
+        )
 
     def start(self) -> None:
         if self._httpd is not None:
@@ -108,6 +116,13 @@ class DesktopBackendServer:
 
             def do_POST(self) -> None:  # noqa: N802
                 server._handle_request(self)
+
+            def do_OPTIONS(self) -> None:  # noqa: N802
+                self.send_response(204)
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+                self.send_header("Access-Control-Allow-Headers", "Content-Type")
+                self.end_headers()
 
             def log_message(self, format: str, *args: Any) -> None:  # noqa: A003
                 return
@@ -157,6 +172,27 @@ class DesktopBackendServer:
                 self._write_json(handler, status_code, payload)
                 return
 
+        if path == "/api/image-proxy":
+            url = query.get("url", [""])[0]
+            if not url:
+                self._write_json(handler, 400, {"status": "error", "message": "missing url"})
+                return
+            try:
+                req = urllib.request.Request(url, headers={"Referer": "https://mp.weixin.qq.com/"})
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    data = resp.read()
+                    content_type = resp.headers.get("Content-Type", "image/jpeg")
+                handler.send_response(200)
+                handler.send_header("Content-Type", content_type)
+                handler.send_header("Content-Length", str(len(data)))
+                handler.send_header("Access-Control-Allow-Origin", "*")
+                handler.send_header("Cache-Control", "public, max-age=86400")
+                handler.end_headers()
+                handler.wfile.write(data)
+            except Exception:
+                self._write_json(handler, 502, {"status": "error", "message": "failed to fetch image"})
+            return
+
         route = self._routes.get((handler.command, path))
         if route is None:
             self._write_json(handler, 404, {"status": "error", "message": "not found"})
@@ -170,6 +206,7 @@ class DesktopBackendServer:
         handler.send_response(status_code)
         handler.send_header("Content-Type", "application/json; charset=utf-8")
         handler.send_header("Content-Length", str(len(body)))
+        handler.send_header("Access-Control-Allow-Origin", "*")
         handler.end_headers()
         handler.wfile.write(body)
 

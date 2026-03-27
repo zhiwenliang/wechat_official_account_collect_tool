@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
 
 import { ArticlesTable } from "../../components/ArticlesTable";
+import { ArticleDetailModal } from "../../components/ArticleDetailModal";
 import { getArticles } from "../../lib/api";
 import { useArticlesViewStore } from "../../state/app-store";
 
@@ -12,6 +13,7 @@ function getQueryErrorMessage(error: unknown) {
 
 export function ArticlesPage() {
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const [selectedArticleId, setSelectedArticleId] = useState<number | null>(null);
   const {
     status,
     draftSearch,
@@ -137,7 +139,15 @@ export function ArticlesPage() {
         </button>
       </div>
 
-      <ArticlesTable articles={payload.items} />
+      <ArticlesTable
+        articles={payload.items}
+        onArticleDoubleClick={(article) => setSelectedArticleId(article.id)}
+      />
+
+      <ArticleDetailModal
+        articleId={selectedArticleId}
+        onClose={() => setSelectedArticleId(null)}
+      />
 
       {/* Pagination */}
       <div className="pagination flex items-center justify-end gap-3">

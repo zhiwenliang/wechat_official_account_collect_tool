@@ -260,6 +260,7 @@ export function CollectionPage() {
           current={progress.current}
           total={progress.total}
           message={progress.message}
+          hideTotal
         />
         <TaskLogPanel events={events} />
       </div>

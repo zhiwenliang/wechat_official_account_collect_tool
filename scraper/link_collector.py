@@ -197,37 +197,3 @@ class LinkCollector:
         print("  ✓ 标签已清理\n")
         return True
 
-    def run(self):
-        """运行采集流程"""
-        from utils.escape_listener import EscapeListener
-
-        esc_listener = EscapeListener()
-
-        print("=== 微信公众号文章链接采集 ===\n")
-
-        print("准备工作检查：")
-        print("1. 窗口1：已打开公众号页面，并点击【文章分组】，滚动到页面最顶部")
-        print("2. 窗口2：已打开微信内置浏览器")
-        print("3. 两个窗口不重叠且都可见")
-        print("4. 已完成坐标校准\n")
-
-        input("确认以上准备完成，按回车开始采集...")
-
-        self.stop_checker = esc_listener.is_triggered
-        esc_enabled = esc_listener.start()
-
-        stop_hint = "将鼠标移到屏幕角落可紧急停止"
-        if esc_enabled:
-            stop_hint += "，按 Esc 也可停止"
-        print(f"\n提示: {stop_hint}\n")
-        self._sleep_with_stop(2)
-
-        try:
-            return run_collection_workflow(self, log=print)
-        finally:
-            esc_listener.stop()
-            self.stop_checker = None
-
-if __name__ == "__main__":
-    collector = LinkCollector()
-    collector.run()

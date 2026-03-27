@@ -3,6 +3,7 @@ type TaskProgressPanelProps = {
   current: number;
   total: number;
   message: string;
+  hideTotal?: boolean;
 };
 
 export function TaskProgressPanel({
@@ -10,6 +11,7 @@ export function TaskProgressPanel({
   current,
   total,
   message,
+  hideTotal = false,
 }: TaskProgressPanelProps) {
   const safeTotal = Math.max(total, 1);
   const safeCurrent = Math.min(Math.max(current, 0), safeTotal);
@@ -24,13 +26,15 @@ export function TaskProgressPanel({
         <p className="text-xs text-gray-500">{status}</p>
       </div>
 
-      <div className="mt-4">
-        <progress value={safeCurrent} max={safeTotal} />
-      </div>
+      {hideTotal ? null : (
+        <div className="mt-4">
+          <progress value={safeCurrent} max={safeTotal} />
+        </div>
+      )}
 
       <div className="task-progress__meta mt-2 flex flex-wrap justify-between gap-2 text-xs text-gray-500">
         <span>
-          {current} / {total}
+          {hideTotal ? `已处理 ${current}` : `${current} / ${total}`}
         </span>
         <span>{message || "等待进度更新"}</span>
       </div>

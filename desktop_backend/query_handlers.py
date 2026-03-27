@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from typing import Any
 
+from services.calibration_service import get_coordinates_path, load_coordinates_config
 from services.workflows import reset_empty_content_articles, reset_failed_articles
 from storage.database import Database
 from storage.file_store import FileStore
 
 from .schemas import (
+    build_article_detail_payload,
     build_article_payload,
     build_articles_payload,
     build_recent_article_payload,
@@ -14,8 +16,42 @@ from .schemas import (
 )
 
 
+def _is_position_calibrated(pos: dict) -> bool:
+    return bool(pos.get("x") or pos.get("y"))
+
+
+def get_calibration_status_handler() -> dict[str, bool]:
+    if not get_coordinates_path().exists():
+        return {
+            "article_click_area": False,
+            "scroll_amount": False,
+            "visible_articles": False,
+            "more_button": False,
+            "copy_link_menu": False,
+            "tab_management": False,
+        }
+    config = load_coordinates_config()
+    article_list = config.get("windows", {}).get("article_list", {})
+    browser = config.get("windows", {}).get("browser", {})
+    return {
+        "article_click_area": _is_position_calibrated(article_list.get("article_click_area", {})),
+        "scroll_amount": int(article_list.get("row_height", 0)) > 0,
+        "visible_articles": int(article_list.get("visible_articles", 0)) > 0,
+        "more_button": _is_position_calibrated(browser.get("more_button", {})),
+        "copy_link_menu": _is_position_calibrated(browser.get("copy_link_menu", {})),
+        "tab_management": _is_position_calibrated(browser.get("first_tab", {})),
+    }
+
+
 def get_statistics_handler(*, db: Database):
     return build_statistics_payload(db.get_statistics())
+
+
+def get_article_detail_handler(*, db: Database, article_id: int):
+    row = db.get_article_by_id(article_id)
+    if row is None:
+        return None
+    return build_article_detail_payload(row)
 
 
 def get_recent_articles_handler(*, db: Database, limit: int = 5):

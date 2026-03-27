@@ -1,10 +1,12 @@
 import React from "react";
 import { act } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRoot } from "react-dom/client";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../lib/api", () => ({
   getTaskSnapshot: vi.fn(),
+  getCalibrationStatus: vi.fn().mockResolvedValue({}),
   respondToCalibrationTask: vi.fn(),
   startCalibrationTask: vi.fn(),
   stopTask: vi.fn(),
@@ -32,10 +34,17 @@ async function renderCalibrationPage() {
   const container = document.createElement("div");
   document.body.append(container);
 
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   const root = createRoot(container);
 
   await act(async () => {
-    root.render(<CalibrationPage />);
+    root.render(
+      <QueryClientProvider client={client}>
+        <CalibrationPage />
+      </QueryClientProvider>,
+    );
     await Promise.resolve();
   });
 
@@ -138,6 +147,15 @@ describe("CalibrationPage", () => {
       recordButton.click();
       await Promise.resolve();
     });
+
+    // Advance through the 5-second countdown one tick at a time
+    // (each tick requires React to re-render and schedule the next setTimeout)
+    for (let i = 0; i < 5; i++) {
+      await act(async () => {
+        vi.advanceTimersByTime(1000);
+        await Promise.resolve();
+      });
+    }
 
     expect(respondToCalibrationTask).toHaveBeenCalledWith("calibration-1", { response: "record" });
 

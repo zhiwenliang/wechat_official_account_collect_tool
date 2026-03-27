@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
-import { Play, Square, Crosshair } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Play, Square, Crosshair, CheckCircle2 } from "lucide-react";
 
 import { TaskLogPanel } from "../../components/TaskLogPanel";
 import {
   getTaskSnapshot,
+  getCalibrationStatus,
   respondToCalibrationTask,
   startCalibrationTask,
   stopTask,
@@ -200,6 +202,13 @@ export function CalibrationPage() {
     respond,
     cancel,
   } = useCalibrationTaskWorkflow();
+
+  const calibrationStatusQuery = useQuery({
+    queryKey: ["calibration-status", snapshot?.active],
+    queryFn: getCalibrationStatus,
+  });
+  const calibrationStatus = calibrationStatusQuery.data ?? {};
+
   const prompt = snapshot?.prompt ?? null;
   const summary = summarizeTaskSession(snapshot, {
     isStarting,
@@ -212,6 +221,27 @@ export function CalibrationPage() {
       setIntegerValue(String(prompt.default_value ?? 5));
     }
   }, [prompt?.kind, prompt?.step, prompt?.default_value]);
+
+  const [countdown, setCountdown] = useState<number | null>(null);
+
+  // Tick the countdown every second
+  useEffect(() => {
+    if (countdown === null || countdown <= 0) return;
+    const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [countdown]);
+
+  // Send record when countdown reaches 0
+  useEffect(() => {
+    if (countdown === 0) {
+      setCountdown(null);
+      void respond({ response: "record" });
+    }
+  }, [countdown, respond]);
+
+  const startRecordCountdown = () => {
+    setCountdown(5);
+  };
 
   const parsedIntegerValue =
     prompt?.kind === "integer" && integerValue.trim() !== ""
@@ -261,8 +291,17 @@ export function CalibrationPage() {
             className="calibration-card rounded-xl border border-gray-200/80 bg-white p-4 shadow-card"
           >
             <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
-              <Crosshair className="h-3.5 w-3.5 text-blue-500" />
+              {calibrationStatus[item.action] ? (
+                <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+              ) : (
+                <Crosshair className="h-3.5 w-3.5 text-blue-500" />
+              )}
               {item.title}
+              {calibrationStatus[item.action] ? (
+                <span className="ml-auto text-xs font-normal text-green-600">已校准</span>
+              ) : (
+                <span className="ml-auto text-xs font-normal text-gray-400">未校准</span>
+              )}
             </h3>
             <p className="task-status-meta mt-1 text-xs text-gray-500">
               {item.description}
@@ -317,13 +356,15 @@ export function CalibrationPage() {
               <button
                 type="button"
                 name="calibration-prompt-record"
-                disabled={promptButtonsDisabled}
+                disabled={promptButtonsDisabled || countdown !== null}
                 onClick={() => {
-                  void respond({ response: "record" });
+                  startRecordCountdown();
                 }}
                 className="h-8 rounded-lg bg-blue-500 px-4 text-xs font-medium text-white shadow-sm transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                记录当前位置
+                {countdown !== null
+                  ? `${countdown} 秒后记录...`
+                  : "记录当前位置"}
               </button>
             ) : null}
 
