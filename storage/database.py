@@ -2,11 +2,12 @@
 数据库操作模块
 使用SQLite存储文章信息
 """
-from pathlib import Path
-
-from utils.runtime_env import resolve_runtime_path
-
-from storage.database_core import EMPTY_CONTENT_CONDITION, initialize_database
+from storage.database_core import (
+    EMPTY_CONTENT_CONDITION,
+    ensure_database_parent_dir,
+    initialize_database,
+    resolve_articles_db_path,
+)
 from storage.database_mutations import (
     add_article as _add_article,
     delete_articles_by_ids as _delete_articles_by_ids,
@@ -34,11 +35,8 @@ class Database:
     EMPTY_CONTENT_CONDITION = EMPTY_CONTENT_CONDITION
 
     def __init__(self, db_path="data/articles.db"):
-        if db_path == "data/articles.db":
-            self.db_path = resolve_runtime_path(db_path)
-        else:
-            self.db_path = Path(db_path)
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self.db_path = resolve_articles_db_path(db_path)
+        ensure_database_parent_dir(self.db_path)
         initialize_database(self.db_path)
 
     def _build_article_list_filters(self, status, search=""):

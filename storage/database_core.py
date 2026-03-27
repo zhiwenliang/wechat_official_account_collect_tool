@@ -3,9 +3,25 @@
 import sqlite3
 from pathlib import Path
 
+from utils.runtime_env import resolve_runtime_path
+
+DEFAULT_ARTICLES_DB_PATH = "data/articles.db"
+
 EMPTY_CONTENT_CONDITION = (
     "status = 'scraped' AND TRIM(COALESCE(content_html, '')) = ''"
 )
+
+
+def resolve_articles_db_path(db_path=DEFAULT_ARTICLES_DB_PATH) -> Path:
+    """Resolve the filesystem path for the articles database file."""
+    if db_path == DEFAULT_ARTICLES_DB_PATH:
+        return resolve_runtime_path(db_path)
+    return Path(db_path)
+
+
+def ensure_database_parent_dir(db_path: Path) -> None:
+    """Ensure the parent directory of the database file exists."""
+    db_path.parent.mkdir(parents=True, exist_ok=True)
 
 
 def connect_db(db_path):
