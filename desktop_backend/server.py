@@ -16,6 +16,12 @@ from desktop_backend.query_handlers import (
 )
 from storage.database import Database
 
+from .http.image_proxy import (
+    ImageProxyRequestError,
+    read_image_proxy_response,
+    validate_image_proxy_url,
+)
+from .http.parsing import parse_bool, parse_int
 from .runtime import DEFAULT_HOST, DEFAULT_PORT, select_runtime_port
 
 SERVICE_NAME = "desktop-backend"
@@ -57,22 +63,27 @@ class DesktopBackendServer:
         self._routes[("GET", "/api/statistics")] = lambda _query: get_statistics_handler(db=self.db)
         self._routes[("GET", "/api/recent-articles")] = lambda query: get_recent_articles_handler(
             db=self.db,
-            limit=_parse_int(query, "limit", 5),
+            limit=parse_int(query, "limit", 5),
         )
         self._routes[("GET", "/api/articles")] = lambda query: get_articles_handler(
             db=self.db,
             status=query.get("status", ["all"])[0],
             search=query.get("search", [""])[0],
-            page=_parse_int(query, "page", 1),
-            page_size=_parse_int(query, "page_size", 20),
+            page=parse_int(query, "page", 1),
+            page_size=parse_int(query, "page_size", 20),
             sort_column=query.get("sort_column", [None])[0],
-            descending=_parse_bool(query, "descending"),
+            descending=parse_bool(query, "descending"),
         )
         self._routes[("GET", "/api/calibration/status")] = lambda _query: get_calibration_status_handler()
-        self._routes[("GET", "/api/article-detail")] = lambda query: (
-            get_article_detail_handler(db=self.db, article_id=_parse_int(query, "id", 0))
-            or {"status": "error", "message": "article not found"}
+        self._routes[("GET", "/api/article-detail")] = lambda query: self._build_article_detail_response(
+            article_id=parse_int(query, "id", 0)
         )
+
+    def _build_article_detail_response(self, *, article_id: int) -> tuple[int, Any]:
+        payload = get_article_detail_handler(db=self.db, article_id=article_id)
+        if payload is None:
+            return 404, {"status": "error", "message": "article not found"}
+        return 200, payload
 
     def start(self) -> None:
         if self._httpd is not None:
@@ -178,9 +189,10 @@ class DesktopBackendServer:
                 self._write_json(handler, 400, {"status": "error", "message": "missing url"})
                 return
             try:
-                req = urllib.request.Request(url, headers={"Referer": "https://mp.weixin.qq.com/"})
+                validated_url = validate_image_proxy_url(url)
+                req = urllib.request.Request(validated_url, headers={"Referer": "https://mp.weixin.qq.com/"})
                 with urllib.request.urlopen(req, timeout=10) as resp:
-                    data = resp.read()
+                    data = read_image_proxy_response(resp)
                     content_type = resp.headers.get("Content-Type", "image/jpeg")
                 handler.send_response(200)
                 handler.send_header("Content-Type", content_type)
@@ -189,6 +201,8 @@ class DesktopBackendServer:
                 handler.send_header("Cache-Control", "public, max-age=86400")
                 handler.end_headers()
                 handler.wfile.write(data)
+            except ImageProxyRequestError as exc:
+                self._write_json(handler, exc.status_code, {"status": "error", "message": exc.message})
             except Exception:
                 self._write_json(handler, 502, {"status": "error", "message": "failed to fetch image"})
             return
@@ -199,6 +213,11 @@ class DesktopBackendServer:
             return
 
         payload = route(query)
+        if isinstance(payload, tuple) and len(payload) == 2 and isinstance(payload[0], int):
+            status_code, response_payload = payload
+            self._write_json(handler, status_code, response_payload)
+            return
+
         self._write_json(handler, 200, payload)
 
     def _write_json(self, handler: BaseHTTPRequestHandler, status_code: int, payload: Any) -> None:
@@ -221,15 +240,3 @@ class DesktopBackendServer:
             return json.loads(raw_body.decode("utf-8"))
         except json.JSONDecodeError as exc:
             raise ValueError("invalid json body") from exc
-
-
-def _parse_int(query: dict[str, list[str]], key: str, default: int) -> int:
-    try:
-        return int(query.get(key, [default])[0])
-    except (TypeError, ValueError):
-        return default
-
-
-def _parse_bool(query: dict[str, list[str]], key: str) -> bool:
-    value = query.get(key, ["false"])[0]
-    return str(value).lower() in {"1", "true", "yes", "on"}

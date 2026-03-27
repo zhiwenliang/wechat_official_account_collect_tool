@@ -11,8 +11,8 @@ from .query_handlers import (
     retry_empty_content_articles_handler,
     retry_failed_articles_handler,
 )
-from .task_handlers import WorkflowTaskHandlers
-from .task_registry import TaskRegistry
+from .tasks.handlers import WorkflowTaskHandlers
+from .tasks.registry import TaskRegistry
 
 
 def create_server(

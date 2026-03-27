@@ -5,6 +5,7 @@ import uuid
 from pathlib import Path
 
 from desktop_backend.query_handlers import (
+    delete_selected_articles_handler,
     get_articles_handler,
     get_recent_articles_handler,
     get_statistics_handler,
@@ -126,6 +127,73 @@ class DesktopBackendQueryTests(unittest.TestCase):
                 "is_empty_content": 1,
             }
         ])
+
+    def test_get_articles_clamps_page_size_to_maximum(self):
+        class FakeDatabase:
+            def __init__(self):
+                self.limit = None
+                self.offset = None
+
+            def get_articles_by_status(self, **kwargs):
+                self.limit = kwargs["limit"]
+                self.offset = kwargs["offset"]
+                return []
+
+            def count_articles(self, **_kwargs):
+                return 0
+
+        db = FakeDatabase()
+
+        result = get_articles_handler(db=db, page=2, page_size=1000)
+
+        self.assertEqual(result["page"], 2)
+        self.assertEqual(result["page_size"], 200)
+        self.assertEqual(db.limit, 200)
+        self.assertEqual(db.offset, 200)
+
+    def test_delete_selected_articles_uses_targeted_id_lookup(self):
+        class FakeDatabase:
+            def __init__(self):
+                self.loaded_ids = None
+                self.deleted_ids = None
+
+            def get_articles_by_ids(self, article_ids):
+                self.loaded_ids = list(article_ids)
+                return [
+                    (2, "https://example.com/two", "Two", "", "", "", "pending", 1),
+                    (5, "https://example.com/five", "Five", "", "", "", "pending", 1),
+                ]
+
+            def delete_articles_by_ids(self, article_ids):
+                self.deleted_ids = list(article_ids)
+                return len(article_ids)
+
+            def get_articles_by_status(self, **_kwargs):
+                raise AssertionError("delete handler should not scan all articles")
+
+        class FakeFileStore:
+            def __init__(self):
+                self.deleted_titles = []
+
+            def delete_article_files(self, article_data):
+                self.deleted_titles.append(article_data["title"])
+                return [f"/tmp/{article_data['id']}.html"]
+
+        db = FakeDatabase()
+        file_store = FakeFileStore()
+
+        result = delete_selected_articles_handler(
+            article_ids=[5, 2, 5],
+            db=db,
+            file_store=file_store,
+        )
+
+        self.assertEqual(db.loaded_ids, [5, 2])
+        self.assertEqual(db.deleted_ids, [5, 2])
+        self.assertEqual(file_store.deleted_titles, ["Two", "Five"])
+        self.assertEqual(result["deleted"], 2)
+        self.assertEqual(result["removed_files"], 2)
+        self.assertEqual(result["file_errors"], [])
 
 
 if __name__ == "__main__":

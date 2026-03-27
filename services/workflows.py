@@ -1,5 +1,5 @@
 """
-Shared task workflows used by both CLI and GUI.
+Shared task workflows used by desktop-facing entry points.
 """
 from dataclasses import dataclass
 from datetime import datetime
@@ -203,7 +203,7 @@ def run_collection_workflow(
     log(f"结束时间: {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
     log(f"总耗时: {elapsed.total_seconds():.1f} 秒 ({elapsed.total_seconds()/60:.1f} 分钟)")
     if not stopped:
-        log("\n下一步: 运行 'python main.py scrape' 抓取文章内容")
+        log("\n下一步: 返回桌面应用并开始抓取文章内容")
 
     return CollectionResult(
         stopped=stopped,

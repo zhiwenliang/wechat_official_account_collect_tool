@@ -5,7 +5,8 @@ import path from "node:path";
 
 import { app, BrowserWindow, ipcMain } from "electron";
 
-import type { BackendHealth, BackendStatus } from "../src/renderer/lib/task-events";
+import type { BackendHealth, BackendStatus } from "../src/shared/desktop-contract";
+import { RetryableStartup } from "./retryable-startup";
 
 const DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL ?? "http://localhost:5173";
 const BACKEND_HOST = "127.0.0.1";
@@ -181,26 +182,22 @@ class PythonSidecarController {
     message: "正在启动 Python sidecar",
   };
 
-  private startupPromise: Promise<void> | null = null;
+  private startup = new RetryableStartup();
 
   getStatus() {
     return this.status;
   }
 
   async start() {
-    if (this.startupPromise) {
-      return this.startupPromise;
-    }
-
-    this.startupPromise = this.bootstrap().catch((error: unknown) => {
+    return this.startup.run(async () => {
+      await this.bootstrap();
+    }).catch((error: unknown) => {
       this.status = {
         state: "error",
         message: formatErrorMessage(error),
       };
       throw error;
     });
-
-    return this.startupPromise;
   }
 
   stop() {
@@ -209,7 +206,7 @@ class PythonSidecarController {
     }
 
     this.child = null;
-    this.startupPromise = null;
+    this.startup.reset();
   }
 
   private async bootstrap() {

@@ -1,14 +1,5 @@
-import type { BackendStatus, TaskSnapshotPayload } from "./task-events";
-
-export interface DesktopBridge {
-  getBackendStatus: () => Promise<BackendStatus>;
-}
-
-declare global {
-  interface Window {
-    desktop?: DesktopBridge;
-  }
-}
+import type { BackendStatus } from "../../shared/desktop-contract";
+import type { TaskSnapshotPayload } from "./task-events";
 
 export async function getBackendStatus(): Promise<BackendStatus> {
   if (!window.desktop) {

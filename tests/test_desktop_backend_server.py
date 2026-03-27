@@ -1,3 +1,4 @@
+import http.client
 import os
 import socket
 import sqlite3
@@ -5,7 +6,9 @@ import json
 import shutil
 import time
 import unittest
+from unittest import mock
 from pathlib import Path
+import urllib.error
 from urllib.parse import urlencode
 import urllib.request
 import uuid
@@ -209,6 +212,84 @@ class DesktopBackendServerTests(unittest.TestCase):
             }
         ])
 
+    def test_article_detail_route_returns_404_for_missing_article(self):
+        root = make_case_root()
+        self.addCleanup(lambda: shutil.rmtree(root, ignore_errors=True))
+
+        db = make_database(root)
+        server = DesktopBackendServer(host="127.0.0.1", port=0, db=db)
+        server.start()
+        self.addCleanup(server.stop)
+
+        url = f"http://{server.host}:{server.port}/api/article-detail?id=9999"
+
+        with self.assertRaises(urllib.error.HTTPError) as context:
+            self._wait_for_json(url)
+
+        response = context.exception
+        payload = json.loads(response.read().decode("utf-8"))
+
+        self.assertEqual(response.code, 404)
+        self.assertEqual(
+            payload,
+            {
+                "status": "error",
+                "message": "article not found",
+            },
+        )
+
+    def test_image_proxy_rejects_unsupported_hosts(self):
+        server = DesktopBackendServer(host="127.0.0.1", port=0)
+        server.start()
+        self.addCleanup(server.stop)
+
+        status_code, payload = self._request_json(
+            server,
+            "/api/image-proxy?url=https%3A%2F%2Fexample.com%2Fimage.png",
+        )
+
+        self.assertEqual(status_code, 400)
+        self.assertEqual(
+            payload,
+            {
+                "status": "error",
+                "message": "unsupported image url",
+            },
+        )
+
+    def test_image_proxy_rejects_oversized_images(self):
+        class FakeResponse:
+            def __init__(self):
+                self.headers = {"Content-Type": "image/png", "Content-Length": str(6 * 1024 * 1024)}
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def read(self, _size=-1):
+                return b""
+
+        server = DesktopBackendServer(host="127.0.0.1", port=0)
+        server.start()
+        self.addCleanup(server.stop)
+
+        with mock.patch("desktop_backend.server.urllib.request.urlopen", return_value=FakeResponse()):
+            status_code, payload = self._request_json(
+                server,
+                "/api/image-proxy?url=https%3A%2F%2Fmmbiz.qpic.cn%2Fimage.png",
+            )
+
+        self.assertEqual(status_code, 413)
+        self.assertEqual(
+            payload,
+            {
+                "status": "error",
+                "message": "image too large",
+            },
+        )
+
     def _wait_for_json(self, url: str):
         deadline = time.time() + 5
 
@@ -219,6 +300,16 @@ class DesktopBackendServerTests(unittest.TestCase):
                 if time.time() >= deadline:
                     raise
                 time.sleep(0.05)
+
+    def _request_json(self, server: DesktopBackendServer, path: str) -> tuple[int, dict]:
+        connection = http.client.HTTPConnection(server.host, server.port, timeout=2)
+        try:
+            connection.request("GET", path)
+            response = connection.getresponse()
+            payload = json.loads(response.read().decode("utf-8"))
+            return response.status, payload
+        finally:
+            connection.close()
 
     def _restore_env_port(self, value: str | None) -> None:
         if value is None:
