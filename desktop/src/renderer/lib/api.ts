@@ -1,4 +1,4 @@
-import type { BackendStatus, DesktopBridge } from "../../shared/desktop-contract";
+import type { BackendStatus } from "../../shared/desktop-contract";
 import type { TaskSnapshotPayload } from "./task-events";
 
 export async function getBackendStatus(): Promise<BackendStatus> {
