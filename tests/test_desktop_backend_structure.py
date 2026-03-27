@@ -56,3 +56,14 @@ class DesktopBackendStructureTests(unittest.TestCase):
         self.assertTrue(issubclass(WorkflowTaskHandlersImpl, WorkflowTaskHandlers))
         self.assertTrue(callable(default_calibration_runtime_factory))
         self.assertTrue(hasattr(CalibrationTaskWorker, "submit_response"))
+
+    def test_database_split_modules_exist(self) -> None:
+        from storage.database import Database
+        from storage.database_core import connect_db
+        from storage.database_mutations import reset_articles_by_ids
+        from storage.database_queries import get_articles_by_status
+
+        self.assertTrue(callable(connect_db))
+        self.assertTrue(callable(get_articles_by_status))
+        self.assertTrue(callable(reset_articles_by_ids))
+        self.assertTrue(hasattr(Database, "get_statistics"))
