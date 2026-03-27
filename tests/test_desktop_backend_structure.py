@@ -46,3 +46,13 @@ class DesktopBackendStructureTests(unittest.TestCase):
         self.assertTrue(callable(register_query_routes))
         self.assertTrue(callable(build_request_handler))
         self.assertTrue(hasattr(DesktopBackendServer, "start"))
+
+    def test_task_handler_split_modules_exist(self) -> None:
+        from desktop_backend.task_handlers import WorkflowTaskHandlers
+        from desktop_backend.tasks.calibration_worker import CalibrationTaskWorker
+        from desktop_backend.tasks.defaults import default_calibration_runtime_factory
+        from desktop_backend.tasks.workflow_handlers_impl import WorkflowTaskHandlersImpl
+
+        self.assertTrue(issubclass(WorkflowTaskHandlersImpl, WorkflowTaskHandlers))
+        self.assertTrue(callable(default_calibration_runtime_factory))
+        self.assertTrue(hasattr(CalibrationTaskWorker, "submit_response"))
