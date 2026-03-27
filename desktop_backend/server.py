@@ -28,7 +28,7 @@ SERVICE_NAME = "desktop-backend"
 
 
 def _json_bytes(payload: Any) -> bytes:
-        return json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    return json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
 
 
 class DesktopBackendServer:
