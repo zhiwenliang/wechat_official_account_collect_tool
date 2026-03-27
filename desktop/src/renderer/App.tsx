@@ -12,11 +12,11 @@ import {
 import { getBackendStatus } from "./lib/api";
 import { cn } from "./lib/utils";
 import type { BackendStatus } from "../shared/desktop-contract";
-import { ArticlesPage } from "./pages/articles/ArticlesPage";
-import { DashboardPage } from "./pages/dashboard/DashboardPage";
-import { CalibrationPage } from "./pages/calibration/CalibrationPage";
-import { CollectionPage } from "./pages/collection/CollectionPage";
-import { ScrapingPage } from "./pages/scraping/ScrapingPage";
+import { ArticlesPage } from "./features/articles/ArticlesPage";
+import { DashboardPage } from "./features/dashboard/DashboardPage";
+import { CalibrationPage } from "./features/calibration/CalibrationPage";
+import { CollectionPage } from "./features/collection/CollectionPage";
+import { ScrapingPage } from "./features/scraping/ScrapingPage";
 
 const INITIAL_STATUS: BackendStatus = {
   state: "starting",

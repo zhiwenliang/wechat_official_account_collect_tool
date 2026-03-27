@@ -3,9 +3,18 @@
 ## Project Structure
 
 - `desktop/`: Electron + React + TypeScript frontend.
-  - `electron/`: main-process and preload code.
-  - `src/renderer/`: application pages, components, state, and client API helpers.
+  - `desktop/electron/`: main-process and preload code.
+  - `desktop/src/shared/`: TypeScript shared across Electron layers where appropriate.
+  - `desktop/src/renderer/`: application UI (routes, features, shared UI).
+    - `desktop/src/renderer/features/`: feature-scoped screens and colocated logic.
+    - `desktop/src/renderer/components/`: reusable UI building blocks.
+    - `desktop/src/renderer/lib/`: client API helpers, utilities, and integrations (for example task-event streaming).
+    - `desktop/src/renderer/state/`: Zustand stores and related UI state.
 - `desktop_backend/`: Python sidecar entrypoint, HTTP server, task registry, query handlers, and import/export handlers.
+  - `desktop_backend/articles/`: article HTTP/query handling grouped by domain.
+  - `desktop_backend/tasks/calibration/`: calibration task workers and helpers.
+  - `desktop_backend/tasks/collection/`: Stage 1 collection task workers and helpers.
+  - `desktop_backend/tasks/scraping/`: Stage 2 scraping task workers and helpers.
 - `scraper/`: Stage 1 link collection and Stage 2 article scraping internals.
 - `services/`: shared calibration, workflow, and data-transfer logic used by the sidecar.
 - `storage/`: SQLite access and file export helpers.

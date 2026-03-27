@@ -83,11 +83,12 @@ conda run -n wechat-scraper python -m unittest tests.test_electron_only_repo -v
 
 **Frontend** (`desktop/`)
 - React 18 + TypeScript + Vite + Tailwind CSS v4
-- State: Zustand for UI state (`state/app-store.ts`), TanStack React Query for server data
-- Renderer pages: dashboard, articles, calibration, collection, and scraping
-- Shared components: `ArticlesTable`, `ArticleDetailModal`, `StatisticsCards`, `TaskProgressPanel`, `TaskLogPanel`
+- Feature screens and colocated logic under `desktop/src/renderer/features/` (dashboard, articles, calibration, collection, scraping workflows).
+- Shared UI under `desktop/src/renderer/components/` (for example `ArticlesTable`, `ArticleDetailModal`, `StatisticsCards`, `TaskProgressPanel`, `TaskLogPanel`).
+- Client API helpers, utilities, and SSE task streaming under `desktop/src/renderer/lib/` (for example `api.ts`, `task-events.ts`).
+- Zustand UI state under `desktop/src/renderer/state/` (for example `app-store.ts`); TanStack React Query for server data.
+- Cross-runtime TypeScript shared with the Electron main process under `desktop/src/shared/`.
 - Electron preload bridge for backend status and API access
-- Client API layer at `src/renderer/lib/api.ts` with SSE-based task events (`lib/task-events.ts`)
 - Unit tests via vitest (`src/**/*.test.tsx`, `electron/**/*.test.ts`)
 - E2E smoke tests via Playwright (`tests/e2e/`)
 
@@ -96,10 +97,9 @@ conda run -n wechat-scraper python -m unittest tests.test_electron_only_repo -v
 - Spawned by `desktop/electron/main.ts` with retryable startup logic (`electron/retryable-startup.ts`)
 - `app.py`: server factory, wires handlers and task registry
 - `task_registry.py`: manages running background tasks
-- `task_handlers.py`: workflow task handlers (collection, scraping, calibration)
+- `desktop_backend/articles/`: article-facing HTTP handlers, commands, and article payload builders; `query_handlers.py` and `schemas.py` still re-export from here so existing imports and routing stay stable.
+- `desktop_backend/tasks/calibration/`, `desktop_backend/tasks/collection/`, and `desktop_backend/tasks/scraping/`: calibration, collection, and scraping task workers and helpers; `task_handlers.py` and related `tasks/` modules still provide compatibility wiring for the task registry.
 - `task_events.py`: typed event and prompt schemas for SSE streaming
-- `schemas.py`: typed response payloads (`StatisticsPayload`, `ArticlePayload`, etc.)
-- `query_handlers.py`: article queries, deletion, and retry operations
 - `import_export_handlers.py`: data bundle export and database import
 - `runtime.py`: host/port constants and port-availability checks
 

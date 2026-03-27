@@ -4,10 +4,13 @@ import unittest
 import uuid
 from pathlib import Path
 
-from desktop_backend.query_handlers import (
-    delete_selected_articles_handler,
+from desktop_backend.articles.command_handlers import delete_selected_articles_handler
+from desktop_backend.articles.query_handlers import (
     get_articles_handler,
     get_recent_articles_handler,
+)
+from desktop_backend.query_handlers import (
+    get_article_detail_handler,
     get_statistics_handler,
 )
 from storage.database import Database
@@ -79,6 +82,45 @@ class DesktopBackendQueryTests(unittest.TestCase):
         self.assertEqual(result["failed"], 0)
         self.assertEqual(result["empty_content"], 0)
         self.assertEqual(result["failed_urls"], [])
+
+    def test_get_article_detail_handler_returns_payload_for_existing_article(self):
+        root = make_case_root()
+        self.addCleanup(lambda: shutil.rmtree(root, ignore_errors=True))
+        db = make_database(root)
+        seed_article(
+            db,
+            url="https://example.com/detail",
+            title="Detail Title",
+            status="scraped",
+            publish_time="2024-03-01 12:00:00",
+            scraped_at="2024-03-02 10:00:00",
+            file_path="/articles/detail.md",
+            content_html="<p>body</p>",
+            content_markdown="# Hello",
+        )
+        conn = sqlite3.connect(db.db_path)
+        try:
+            row = conn.execute(
+                "SELECT id FROM articles WHERE url = ?",
+                ("https://example.com/detail",),
+            ).fetchone()
+        finally:
+            conn.close()
+        self.assertIsNotNone(row)
+        article_id = int(row[0])
+
+        result = get_article_detail_handler(db=db, article_id=article_id)
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result["id"], article_id)
+        self.assertEqual(result["url"], "https://example.com/detail")
+        self.assertEqual(result["title"], "Detail Title")
+        self.assertEqual(result["publish_time"], "2024-03-01 12:00:00")
+        self.assertEqual(result["scraped_at"], "2024-03-02 10:00:00")
+        self.assertEqual(result["file_path"], "/articles/detail.md")
+        self.assertEqual(result["status"], "scraped")
+        self.assertEqual(result["is_empty_content"], 0)
+        self.assertEqual(result["content_markdown"], "# Hello")
 
     def test_get_recent_articles_returns_newest_articles_first(self):
         root = make_case_root()

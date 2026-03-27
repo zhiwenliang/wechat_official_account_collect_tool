@@ -6,7 +6,7 @@ from typing import Any
 from .runtime import DEFAULT_HOST, DEFAULT_PORT
 from .server import DesktopBackendServer
 from .import_export_handlers import export_data_bundle_handler, import_database_handler
-from .query_handlers import (
+from .articles.command_handlers import (
     delete_selected_articles_handler,
     retry_empty_content_articles_handler,
     retry_failed_articles_handler,

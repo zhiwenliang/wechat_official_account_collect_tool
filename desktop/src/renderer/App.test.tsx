@@ -3,19 +3,23 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-vi.mock("./pages/dashboard/DashboardPage", () => ({
+vi.mock("./features/dashboard/DashboardPage", () => ({
   DashboardPage: () => <div>Dashboard stub</div>,
 }));
 
-vi.mock("./pages/articles/ArticlesPage", () => ({
+vi.mock("./features/articles/ArticlesPage", () => ({
   ArticlesPage: () => <div>Articles stub</div>,
 }));
 
-vi.mock("./pages/collection/CollectionPage", () => ({
+vi.mock("./features/calibration/CalibrationPage", () => ({
+  CalibrationPage: () => <div>Calibration stub</div>,
+}));
+
+vi.mock("./features/collection/CollectionPage", () => ({
   CollectionPage: () => <div>Collection stub</div>,
 }));
 
-vi.mock("./pages/scraping/ScrapingPage", () => ({
+vi.mock("./features/scraping/ScrapingPage", () => ({
   ScrapingPage: () => <div>Scraping stub</div>,
 }));
 
@@ -156,6 +160,7 @@ describe("renderBackendCopy", () => {
     const { container, root } = await renderApp();
     expect(container.textContent).not.toContain("Dashboard stub");
     expect(container.textContent).not.toContain("Articles stub");
+    expect(container.textContent).not.toContain("Calibration stub");
     expect(container.textContent).not.toContain("Collection stub");
     expect(container.textContent).not.toContain("Scraping stub");
 
@@ -166,6 +171,7 @@ describe("renderBackendCopy", () => {
 
     expect(container.textContent).toContain("Dashboard stub");
     expect(container.textContent).toContain("Articles stub");
+    expect(container.textContent).toContain("Calibration stub");
     expect(container.textContent).toContain("Collection stub");
     expect(container.textContent).toContain("Scraping stub");
 
