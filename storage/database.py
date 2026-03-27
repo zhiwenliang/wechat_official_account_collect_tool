@@ -31,6 +31,15 @@ from storage.database_queries import (
 )
 
 
+def _bind_db_path(impl, doc=None):
+    def bound(self, *args, **kwargs):
+        return impl(self.db_path, *args, **kwargs)
+
+    bound.__name__ = impl.__name__
+    bound.__doc__ = doc if doc is not None else impl.__doc__
+    return bound
+
+
 class Database:
     EMPTY_CONTENT_CONDITION = EMPTY_CONTENT_CONDITION
 
@@ -90,9 +99,9 @@ class Database:
         """将指定文章重置为pending，便于重新抓取"""
         return _reset_articles_by_ids(self.db_path, article_ids)
 
-    def delete_articles_by_ids(self, article_ids):
-        """删除指定文章记录"""
-        return _delete_articles_by_ids(self.db_path, article_ids)
+    delete_articles_by_ids = _bind_db_path(
+        _delete_articles_by_ids, doc="删除指定文章记录"
+    )
 
     def count_articles(self, status="all", search=""):
         """Count articles matching the current list filters."""
@@ -102,22 +111,6 @@ class Database:
         """Return the most recent articles for the dashboard."""
         return _get_recent_articles(self.db_path, limit)
 
-    def get_articles_by_status(
-        self,
-        status,
-        search="",
-        sort_column=None,
-        descending=False,
-        limit=None,
-        offset=0,
-    ):
-        """获取指定状态的文章列表"""
-        return _get_articles_by_status(
-            self.db_path,
-            status,
-            search=search,
-            sort_column=sort_column,
-            descending=descending,
-            limit=limit,
-            offset=offset,
-        )
+    get_articles_by_status = _bind_db_path(
+        _get_articles_by_status, doc="获取指定状态的文章列表"
+    )
