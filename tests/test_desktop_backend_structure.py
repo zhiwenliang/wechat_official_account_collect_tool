@@ -35,3 +35,14 @@ class DesktopBackendStructureTests(unittest.TestCase):
         self.assertIs(build_started_event, packaged_build_started_event)
         self.assertIs(TaskRegistry, packaged_task_registry)
         self.assertIs(WorkflowTaskHandlers, packaged_workflow_task_handlers)
+
+    def test_server_runtime_modules_exist(self) -> None:
+        from desktop_backend.server import DesktopBackendServer
+        from desktop_backend.server_json import json_bytes
+        from desktop_backend.server_routes import register_query_routes
+        from desktop_backend.server_runtime import build_request_handler
+
+        self.assertTrue(callable(json_bytes))
+        self.assertTrue(callable(register_query_routes))
+        self.assertTrue(callable(build_request_handler))
+        self.assertTrue(hasattr(DesktopBackendServer, "start"))
