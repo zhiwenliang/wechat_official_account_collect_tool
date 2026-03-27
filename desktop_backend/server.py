@@ -1,34 +1,17 @@
 from __future__ import annotations
 
-import json
 import threading
 import urllib.request
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import ThreadingHTTPServer
 from typing import Any, Callable
-from urllib.parse import parse_qs, urlsplit
 
-from desktop_backend.query_handlers import (
-    get_article_detail_handler,
-    get_articles_handler,
-    get_calibration_status_handler,
-    get_recent_articles_handler,
-    get_statistics_handler,
-)
 from storage.database import Database
 
-from .http.image_proxy import (
-    ImageProxyRequestError,
-    read_image_proxy_response,
-    validate_image_proxy_url,
-)
-from .http.parsing import parse_bool, parse_int
 from .runtime import DEFAULT_HOST, DEFAULT_PORT, select_runtime_port
+from .server_routes import register_query_routes
+from .server_runtime import build_request_handler
 
 SERVICE_NAME = "desktop-backend"
-
-
-def _json_bytes(payload: Any) -> bytes:
-    return json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
 
 
 class DesktopBackendServer:
@@ -51,7 +34,7 @@ class DesktopBackendServer:
         self._httpd: ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
         self._routes: dict[tuple[str, str], Any] = {}
-        self._register_query_routes()
+        register_query_routes(self)
 
     @property
     def db(self) -> Database:
@@ -59,31 +42,9 @@ class DesktopBackendServer:
             self._db = Database()
         return self._db
 
-    def _register_query_routes(self) -> None:
-        self._routes[("GET", "/api/statistics")] = lambda _query: get_statistics_handler(db=self.db)
-        self._routes[("GET", "/api/recent-articles")] = lambda query: get_recent_articles_handler(
-            db=self.db,
-            limit=parse_int(query, "limit", 5),
-        )
-        self._routes[("GET", "/api/articles")] = lambda query: get_articles_handler(
-            db=self.db,
-            status=query.get("status", ["all"])[0],
-            search=query.get("search", [""])[0],
-            page=parse_int(query, "page", 1),
-            page_size=parse_int(query, "page_size", 20),
-            sort_column=query.get("sort_column", [None])[0],
-            descending=parse_bool(query, "descending"),
-        )
-        self._routes[("GET", "/api/calibration/status")] = lambda _query: get_calibration_status_handler()
-        self._routes[("GET", "/api/article-detail")] = lambda query: self._build_article_detail_response(
-            article_id=parse_int(query, "id", 0)
-        )
-
-    def _build_article_detail_response(self, *, article_id: int) -> tuple[int, Any]:
-        payload = get_article_detail_handler(db=self.db, article_id=article_id)
-        if payload is None:
-            return 404, {"status": "error", "message": "article not found"}
-        return 200, payload
+    def _open_image_proxy(self, validated_url: str):
+        req = urllib.request.Request(validated_url, headers={"Referer": "https://mp.weixin.qq.com/"})
+        return urllib.request.urlopen(req, timeout=10)
 
     def start(self) -> None:
         if self._httpd is not None:
@@ -119,124 +80,4 @@ class DesktopBackendServer:
             self._thread.join()
 
     def _build_handler(self):
-        server = self
-
-        class RequestHandler(BaseHTTPRequestHandler):
-            def do_GET(self) -> None:  # noqa: N802
-                server._handle_request(self)
-
-            def do_POST(self) -> None:  # noqa: N802
-                server._handle_request(self)
-
-            def do_OPTIONS(self) -> None:  # noqa: N802
-                self.send_response(204)
-                self.send_header("Access-Control-Allow-Origin", "*")
-                self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-                self.send_header("Access-Control-Allow-Headers", "Content-Type")
-                self.end_headers()
-
-            def log_message(self, format: str, *args: Any) -> None:  # noqa: A003
-                return
-
-        return RequestHandler
-
-    def _handle_request(self, handler: BaseHTTPRequestHandler) -> None:
-        parsed = urlsplit(handler.path)
-        path = parsed.path
-        query = parse_qs(parsed.query)
-        try:
-            body = self._read_json_body(handler) if handler.command == "POST" else None
-        except ValueError as exc:
-            self._write_json(handler, 400, {"status": "error", "message": str(exc)})
-            return
-
-        if path == "/health":
-            self._write_json(
-                handler,
-                200,
-                {
-                    "status": "ok",
-                    "service": SERVICE_NAME,
-                },
-            )
-            return
-
-        if handler.command == "GET" and self._get_handler is not None:
-            try:
-                result = self._get_handler(path, query)
-            except Exception as exc:
-                self._write_json(handler, 500, {"status": "error", "message": str(exc)})
-                return
-            if result is not None:
-                status_code, payload = result
-                self._write_json(handler, status_code, payload)
-                return
-
-        if handler.command == "POST" and self._post_handler is not None:
-            try:
-                result = self._post_handler(path, query, body)
-            except Exception as exc:
-                self._write_json(handler, 500, {"status": "error", "message": str(exc)})
-                return
-            if result is not None:
-                status_code, payload = result
-                self._write_json(handler, status_code, payload)
-                return
-
-        if path == "/api/image-proxy":
-            url = query.get("url", [""])[0]
-            if not url:
-                self._write_json(handler, 400, {"status": "error", "message": "missing url"})
-                return
-            try:
-                validated_url = validate_image_proxy_url(url)
-                req = urllib.request.Request(validated_url, headers={"Referer": "https://mp.weixin.qq.com/"})
-                with urllib.request.urlopen(req, timeout=10) as resp:
-                    data = read_image_proxy_response(resp)
-                    content_type = resp.headers.get("Content-Type", "image/jpeg")
-                handler.send_response(200)
-                handler.send_header("Content-Type", content_type)
-                handler.send_header("Content-Length", str(len(data)))
-                handler.send_header("Access-Control-Allow-Origin", "*")
-                handler.send_header("Cache-Control", "public, max-age=86400")
-                handler.end_headers()
-                handler.wfile.write(data)
-            except ImageProxyRequestError as exc:
-                self._write_json(handler, exc.status_code, {"status": "error", "message": exc.message})
-            except Exception:
-                self._write_json(handler, 502, {"status": "error", "message": "failed to fetch image"})
-            return
-
-        route = self._routes.get((handler.command, path))
-        if route is None:
-            self._write_json(handler, 404, {"status": "error", "message": "not found"})
-            return
-
-        payload = route(query)
-        if isinstance(payload, tuple) and len(payload) == 2 and isinstance(payload[0], int):
-            status_code, response_payload = payload
-            self._write_json(handler, status_code, response_payload)
-            return
-
-        self._write_json(handler, 200, payload)
-
-    def _write_json(self, handler: BaseHTTPRequestHandler, status_code: int, payload: Any) -> None:
-        body = _json_bytes(payload)
-        handler.send_response(status_code)
-        handler.send_header("Content-Type", "application/json; charset=utf-8")
-        handler.send_header("Content-Length", str(len(body)))
-        handler.send_header("Access-Control-Allow-Origin", "*")
-        handler.end_headers()
-        handler.wfile.write(body)
-
-    def _read_json_body(self, handler: BaseHTTPRequestHandler) -> Any:
-        content_length = int(handler.headers.get("Content-Length", "0") or "0")
-        if content_length <= 0:
-            return {}
-        raw_body = handler.rfile.read(content_length)
-        if not raw_body:
-            return {}
-        try:
-            return json.loads(raw_body.decode("utf-8"))
-        except json.JSONDecodeError as exc:
-            raise ValueError("invalid json body") from exc
+        return build_request_handler(self, service_name=SERVICE_NAME)

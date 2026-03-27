@@ -35,3 +35,35 @@ class DesktopBackendStructureTests(unittest.TestCase):
         self.assertIs(build_started_event, packaged_build_started_event)
         self.assertIs(TaskRegistry, packaged_task_registry)
         self.assertIs(WorkflowTaskHandlers, packaged_workflow_task_handlers)
+
+    def test_server_runtime_modules_exist(self) -> None:
+        from desktop_backend.server import DesktopBackendServer
+        from desktop_backend.server_json import json_bytes
+        from desktop_backend.server_routes import register_query_routes
+        from desktop_backend.server_runtime import build_request_handler
+
+        self.assertTrue(callable(json_bytes))
+        self.assertTrue(callable(register_query_routes))
+        self.assertTrue(callable(build_request_handler))
+        self.assertTrue(hasattr(DesktopBackendServer, "start"))
+
+    def test_task_handler_split_modules_exist(self) -> None:
+        from desktop_backend.task_handlers import WorkflowTaskHandlers
+        from desktop_backend.tasks.calibration_worker import CalibrationTaskWorker
+        from desktop_backend.tasks.defaults import default_calibration_runtime_factory
+        from desktop_backend.tasks.workflow_handlers_impl import WorkflowTaskHandlersImpl
+
+        self.assertIs(WorkflowTaskHandlers, WorkflowTaskHandlersImpl)
+        self.assertTrue(callable(default_calibration_runtime_factory))
+        self.assertTrue(hasattr(CalibrationTaskWorker, "submit_response"))
+
+    def test_database_split_modules_exist(self) -> None:
+        from storage.database import Database
+        from storage.database_core import connect_db
+        from storage.database_mutations import reset_articles_by_ids
+        from storage.database_queries import get_articles_by_status
+
+        self.assertTrue(callable(connect_db))
+        self.assertTrue(callable(get_articles_by_status))
+        self.assertTrue(callable(reset_articles_by_ids))
+        self.assertTrue(hasattr(Database, "get_statistics"))
