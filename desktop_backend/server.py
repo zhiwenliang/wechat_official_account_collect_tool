@@ -16,23 +16,19 @@ from desktop_backend.query_handlers import (
 )
 from storage.database import Database
 
+from .http.image_proxy import (
+    ImageProxyRequestError,
+    read_image_proxy_response,
+    validate_image_proxy_url,
+)
+from .http.parsing import parse_bool, parse_int
 from .runtime import DEFAULT_HOST, DEFAULT_PORT, select_runtime_port
 
 SERVICE_NAME = "desktop-backend"
-IMAGE_PROXY_MAX_BYTES = 5 * 1024 * 1024
-IMAGE_PROXY_ALLOWED_HOSTS = {"res.wx.qq.com"}
-IMAGE_PROXY_ALLOWED_HOST_SUFFIXES = (".qpic.cn", ".qlogo.cn", ".weixin.qq.com")
 
 
 def _json_bytes(payload: Any) -> bytes:
-    return json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-
-
-class ImageProxyRequestError(ValueError):
-    def __init__(self, status_code: int, message: str) -> None:
-        super().__init__(message)
-        self.status_code = status_code
-        self.message = message
+        return json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
 
 
 class DesktopBackendServer:
@@ -67,20 +63,20 @@ class DesktopBackendServer:
         self._routes[("GET", "/api/statistics")] = lambda _query: get_statistics_handler(db=self.db)
         self._routes[("GET", "/api/recent-articles")] = lambda query: get_recent_articles_handler(
             db=self.db,
-            limit=_parse_int(query, "limit", 5),
+            limit=parse_int(query, "limit", 5),
         )
         self._routes[("GET", "/api/articles")] = lambda query: get_articles_handler(
             db=self.db,
             status=query.get("status", ["all"])[0],
             search=query.get("search", [""])[0],
-            page=_parse_int(query, "page", 1),
-            page_size=_parse_int(query, "page_size", 20),
+            page=parse_int(query, "page", 1),
+            page_size=parse_int(query, "page_size", 20),
             sort_column=query.get("sort_column", [None])[0],
-            descending=_parse_bool(query, "descending"),
+            descending=parse_bool(query, "descending"),
         )
         self._routes[("GET", "/api/calibration/status")] = lambda _query: get_calibration_status_handler()
         self._routes[("GET", "/api/article-detail")] = lambda query: self._build_article_detail_response(
-            article_id=_parse_int(query, "id", 0)
+            article_id=parse_int(query, "id", 0)
         )
 
     def _build_article_detail_response(self, *, article_id: int) -> tuple[int, Any]:
@@ -193,10 +189,10 @@ class DesktopBackendServer:
                 self._write_json(handler, 400, {"status": "error", "message": "missing url"})
                 return
             try:
-                validated_url = _validate_image_proxy_url(url)
+                validated_url = validate_image_proxy_url(url)
                 req = urllib.request.Request(validated_url, headers={"Referer": "https://mp.weixin.qq.com/"})
                 with urllib.request.urlopen(req, timeout=10) as resp:
-                    data = _read_image_proxy_response(resp)
+                    data = read_image_proxy_response(resp)
                     content_type = resp.headers.get("Content-Type", "image/jpeg")
                 handler.send_response(200)
                 handler.send_header("Content-Type", content_type)
@@ -244,47 +240,3 @@ class DesktopBackendServer:
             return json.loads(raw_body.decode("utf-8"))
         except json.JSONDecodeError as exc:
             raise ValueError("invalid json body") from exc
-
-
-def _parse_int(query: dict[str, list[str]], key: str, default: int) -> int:
-    try:
-        return int(query.get(key, [default])[0])
-    except (TypeError, ValueError):
-        return default
-
-
-def _parse_bool(query: dict[str, list[str]], key: str) -> bool:
-    value = query.get(key, ["false"])[0]
-    return str(value).lower() in {"1", "true", "yes", "on"}
-
-
-def _validate_image_proxy_url(raw_url: str) -> str:
-    parsed = urlsplit(raw_url)
-    hostname = (parsed.hostname or "").lower()
-
-    if parsed.scheme != "https" or not hostname:
-        raise ImageProxyRequestError(400, "unsupported image url")
-
-    if hostname in IMAGE_PROXY_ALLOWED_HOSTS:
-        return parsed.geturl()
-
-    if hostname.endswith(IMAGE_PROXY_ALLOWED_HOST_SUFFIXES):
-        return parsed.geturl()
-
-    raise ImageProxyRequestError(400, "unsupported image url")
-
-
-def _read_image_proxy_response(response: Any) -> bytes:
-    content_length = response.headers.get("Content-Length")
-    if content_length:
-        try:
-            parsed_length = int(content_length)
-        except ValueError:
-            parsed_length = None
-        if parsed_length is not None and parsed_length > IMAGE_PROXY_MAX_BYTES:
-            raise ImageProxyRequestError(413, "image too large")
-
-    data = response.read(IMAGE_PROXY_MAX_BYTES + 1)
-    if len(data) > IMAGE_PROXY_MAX_BYTES:
-        raise ImageProxyRequestError(413, "image too large")
-    return data
