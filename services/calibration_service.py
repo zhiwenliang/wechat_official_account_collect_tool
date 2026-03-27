@@ -22,6 +22,7 @@ from services.calibration_config import (
     get_coordinates_path,
     load_coordinates_config,
     load_required_coordinates_config,
+    resolve_runtime_path,
     save_coordinates_config,
     set_visible_articles,
 )
@@ -78,6 +79,7 @@ __all__ = [
     "StopCheckerFn",
     "CalibrationCancelled",
     "get_coordinates_path",
+    "resolve_runtime_path",
     "create_default_coordinates_config",
     "load_coordinates_config",
     "load_required_coordinates_config",

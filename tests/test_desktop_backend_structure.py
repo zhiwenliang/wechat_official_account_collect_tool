@@ -53,7 +53,7 @@ class DesktopBackendStructureTests(unittest.TestCase):
         from desktop_backend.tasks.defaults import default_calibration_runtime_factory
         from desktop_backend.tasks.workflow_handlers_impl import WorkflowTaskHandlersImpl
 
-        self.assertTrue(issubclass(WorkflowTaskHandlersImpl, WorkflowTaskHandlers))
+        self.assertIs(WorkflowTaskHandlers, WorkflowTaskHandlersImpl)
         self.assertTrue(callable(default_calibration_runtime_factory))
         self.assertTrue(hasattr(CalibrationTaskWorker, "submit_response"))
 
