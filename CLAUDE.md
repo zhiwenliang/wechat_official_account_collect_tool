@@ -26,7 +26,7 @@ npm --prefix desktop install
 
 ```bash
 # Start the Python sidecar directly when debugging backend behavior
-python -m desktop_backend.app --port 8765
+python -m desktop_backend.app
 
 # Start the Electron development app
 npm --prefix desktop run dev
@@ -36,13 +36,31 @@ npm --prefix desktop run typecheck
 npm --prefix desktop run test
 npm --prefix desktop run build
 npm --prefix desktop run package:desktop
+npm --prefix desktop run package:desktop:dir  # unpacked build for inspection
+
+# End-to-end smoke tests (builds first, then runs Playwright)
+npm --prefix desktop run e2e
 ```
 
 ### Python Tests
 
 ```bash
+# Core backend tests
 conda run -n wechat-scraper python -m unittest tests.test_desktop_backend_server -v
 conda run -n wechat-scraper python -m unittest tests.test_desktop_backend_queries -v
+conda run -n wechat-scraper python -m unittest tests.test_desktop_backend_tasks -v
+conda run -n wechat-scraper python -m unittest tests.test_desktop_backend_import_export -v
+
+# Storage and service tests
+conda run -n wechat-scraper python -m unittest tests.test_file_store -v
+conda run -n wechat-scraper python -m unittest tests.test_file_store_account_name -v
+conda run -n wechat-scraper python -m unittest tests.test_database_account_name -v
+conda run -n wechat-scraper python -m unittest tests.test_data_transfer -v
+conda run -n wechat-scraper python -m unittest tests.test_workflows -v
+conda run -n wechat-scraper python -m unittest tests.test_content_scraper -v
+
+# Repo-level guardrails (run after packaging or doc changes)
+conda run -n wechat-scraper python -m unittest tests.test_electron_only_repo -v
 ```
 
 ## Architecture
@@ -64,14 +82,26 @@ conda run -n wechat-scraper python -m unittest tests.test_desktop_backend_querie
 ### Electron Desktop App
 
 **Frontend** (`desktop/`)
-- React 18 + TypeScript + Vite
-- Renderer pages for dashboard, articles, calibration, collection, and scraping
+- React 18 + TypeScript + Vite + Tailwind CSS v4
+- State: Zustand for UI state (`state/app-store.ts`), TanStack React Query for server data
+- Renderer pages: dashboard, articles, calibration, collection, and scraping
+- Shared components: `ArticlesTable`, `ArticleDetailModal`, `StatisticsCards`, `TaskProgressPanel`, `TaskLogPanel`
 - Electron preload bridge for backend status and API access
+- Client API layer at `src/renderer/lib/api.ts` with SSE-based task events (`lib/task-events.ts`)
+- Unit tests via vitest (`src/**/*.test.tsx`, `electron/**/*.test.ts`)
+- E2E smoke tests via Playwright (`tests/e2e/`)
 
 **Python Sidecar** (`desktop_backend/`)
-- Stdlib HTTP server plus task registry
-- Spawned by `desktop/electron/main.ts`
-- Owns workflow execution, DB queries, calibration prompts, and import/export logic
+- Stdlib HTTP server (`server.py`) with auto-assigned port (default `0`)
+- Spawned by `desktop/electron/main.ts` with retryable startup logic (`electron/retryable-startup.ts`)
+- `app.py`: server factory, wires handlers and task registry
+- `task_registry.py`: manages running background tasks
+- `task_handlers.py`: workflow task handlers (collection, scraping, calibration)
+- `task_events.py`: typed event and prompt schemas for SSE streaming
+- `schemas.py`: typed response payloads (`StatisticsPayload`, `ArticlePayload`, etc.)
+- `query_handlers.py`: article queries, deletion, and retry operations
+- `import_export_handlers.py`: data bundle export and database import
+- `runtime.py`: host/port constants and port-availability checks
 
 ### Shared Backend Modules
 
@@ -81,10 +111,20 @@ conda run -n wechat-scraper python -m unittest tests.test_desktop_backend_querie
 - `storage/database.py`: SQLite schema and query helpers
 - `storage/file_store.py`: HTML/Markdown persistence plus index generation
 - `utils/runtime_env.py`: runtime path resolution for development and packaged runs
+- `utils/stop_control.py`: stop-aware polling helpers for interruptible workflows
+
+### Supporting Directories
+
+- `assets/icons/`: app icons in PNG, ICNS, ICO, and iconset formats
+- `config/`: runtime calibration state (gitignored)
+- `data/`: scraped output and databases (gitignored)
+- `scripts/`: icon generation and manual stage-check helpers
+- `docs/`: desktop release notes and historical design/plan docs under `docs/superpowers/`
 
 ## Runtime Notes
 
 - The Electron main process looks for a backend in this order: `DESKTOP_BACKEND_EXECUTABLE`, `DESKTOP_BACKEND_PYTHON`, active Conda environment Python, then packaged sidecar locations.
+- The sidecar binds to port `0` by default (OS-assigned); Electron reads the actual port from the child process stdout.
 - Packaged runs should write config and data to platform-specific user state directories, not the repository checkout.
 - Stage 1 automation moves the mouse and clicks real UI targets. Preserve safety checks and document any changes.
 
@@ -92,4 +132,5 @@ conda run -n wechat-scraper python -m unittest tests.test_desktop_backend_querie
 
 - Prefer targeted `unittest` modules for backend changes.
 - Prefer `vitest` for renderer changes and Playwright for desktop smoke coverage.
+- Run `tests.test_electron_only_repo` after repo-structure or packaging changes.
 - Do not add CI tests that require a real WeChat desktop session.

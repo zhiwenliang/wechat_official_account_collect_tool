@@ -36,3 +36,33 @@ class FileStoreTests(unittest.TestCase):
         self.assertEqual(removed, [])
         self.assertTrue(outside_file.exists())
 
+    def test_save_article_avoids_overwriting_same_timestamp_and_title(self):
+        root = make_case_root()
+        self.addCleanup(lambda: shutil.rmtree(root, ignore_errors=True))
+        store = FileStore(base_dir=root / "data" / "articles")
+
+        first_path = store.save_article(
+            {
+                "title": "Same Title",
+                "url": "https://example.com/articles/1",
+                "publish_time": "2026-03-22T10:00:00",
+                "content_html": "<p>first</p>",
+            },
+            content_markdown="# first",
+        )
+        second_path = store.save_article(
+            {
+                "title": "Same Title",
+                "url": "https://example.com/articles/2",
+                "publish_time": "2026-03-22T10:00:00",
+                "content_html": "<p>second</p>",
+            },
+            content_markdown="# second",
+        )
+
+        self.assertNotEqual(first_path, second_path)
+        self.assertEqual(len(list(store.html_dir.glob("*.html"))), 2)
+        self.assertEqual(len(list(store.md_dir.glob("*.md"))), 2)
+        self.assertEqual(Path(first_path).read_text(encoding="utf-8").count("first"), 1)
+        self.assertEqual(Path(second_path).read_text(encoding="utf-8").count("second"), 1)
+

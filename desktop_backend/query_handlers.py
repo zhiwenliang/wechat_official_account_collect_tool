@@ -15,6 +15,8 @@ from .schemas import (
     build_statistics_payload,
 )
 
+MAX_ARTICLES_PAGE_SIZE = 200
+
 
 def _is_position_calibrated(pos: dict) -> bool:
     return bool(pos.get("x") or pos.get("y"))
@@ -70,7 +72,7 @@ def get_articles_handler(
     descending: bool = False,
 ):
     safe_page = max(int(page), 1)
-    safe_page_size = max(int(page_size), 1)
+    safe_page_size = min(max(int(page_size), 1), MAX_ARTICLES_PAGE_SIZE)
     offset = (safe_page - 1) * safe_page_size
     items = db.get_articles_by_status(
         status=status,
@@ -145,9 +147,4 @@ def _load_articles_by_ids(db: Database, article_ids: list[int]) -> list[dict[str
     if not article_ids:
         return []
 
-    selected = set(article_ids)
-    return [
-        build_article_payload(row)
-        for row in db.get_articles_by_status(status="all")
-        if row[0] in selected
-    ]
+    return [build_article_payload(row) for row in db.get_articles_by_ids(article_ids)]

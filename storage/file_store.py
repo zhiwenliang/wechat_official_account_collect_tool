@@ -2,6 +2,8 @@
 文件存储模块
 将文章内容保存为HTML和Markdown格式
 """
+import hashlib
+import json
 from pathlib import Path
 from datetime import datetime
 from markdownify import markdownify as md
@@ -37,8 +39,7 @@ class FileStore:
         title = re.sub(r'[<>:"/\\|?*]', '', title)
         return title[:100]
 
-    def build_article_filename(self, article_data):
-        """Build a stable export filename for an article."""
+    def _build_legacy_article_filename(self, article_data):
         title = article_data.get('title') or '无标题'
         publish_time = article_data.get('publish_time', '')
 
@@ -50,6 +51,22 @@ class FileStore:
 
         safe_title = self._sanitize_filename(title) or 'untitled'
         return f"{timestamp}_{safe_title}"
+
+    def _build_article_identity_suffix(self, article_data):
+        identity_payload = {
+            "url": article_data.get("url", ""),
+            "title": article_data.get("title", ""),
+            "publish_time": article_data.get("publish_time", ""),
+            "account_name": article_data.get("account_name", ""),
+        }
+        serialized = json.dumps(identity_payload, ensure_ascii=False, sort_keys=True)
+        return hashlib.sha1(serialized.encode("utf-8")).hexdigest()[:8]
+
+    def build_article_filename(self, article_data):
+        """Build a stable export filename for an article."""
+        legacy_name = self._build_legacy_article_filename(article_data)
+        identity_suffix = self._build_article_identity_suffix(article_data)
+        return f"{legacy_name}_{identity_suffix}"
 
     def generate_index(self):
         """生成文章目录索引"""
@@ -149,16 +166,20 @@ class FileStore:
             if removed:
                 return removed
 
-        filename = f"{self.build_article_filename(article_data)}"
-        html_path = self.html_dir / f"{filename}.html"
-        md_path = self.md_dir / f"{filename}.md"
+        candidate_names = [
+            self.build_article_filename(article_data),
+            self._build_legacy_article_filename(article_data),
+        ]
+        for filename in candidate_names:
+            html_path = self.html_dir / f"{filename}.html"
+            md_path = self.md_dir / f"{filename}.md"
 
-        if html_path.exists():
-            html_path.unlink()
-            removed.append(str(html_path))
-        if md_path.exists():
-            md_path.unlink()
-            removed.append(str(md_path))
+            if html_path.exists():
+                html_path.unlink()
+                removed.append(str(html_path))
+            if md_path.exists():
+                md_path.unlink()
+                removed.append(str(md_path))
 
         return removed
 

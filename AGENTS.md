@@ -9,6 +9,8 @@
 - `scraper/`: Stage 1 link collection and Stage 2 article scraping internals.
 - `services/`: shared calibration, workflow, and data-transfer logic used by the sidecar.
 - `storage/`: SQLite access and file export helpers.
+- `tests/`: backend/unit coverage plus `tests/test_electron_only_repo.py` for repo guardrails.
+- `docs/`: desktop release notes plus historical design and plan docs under `docs/superpowers/`.
 - `config/` and `data/`: runtime state (gitignored).
 
 ## Environment Management
@@ -32,12 +34,14 @@ npm --prefix desktop run build
 npm --prefix desktop run package:desktop
 npm --prefix desktop run typecheck
 npm --prefix desktop run test
+npm --prefix desktop run e2e
 
 python -m desktop_backend.app
 ```
 
 - End users are expected to use the Electron desktop app only.
 - Running `python -m desktop_backend.app` directly is a contributor workflow for debugging the sidecar.
+- Electron resolves the backend via `DESKTOP_BACKEND_EXECUTABLE`, `DESKTOP_BACKEND_PYTHON`, the active Conda env, then packaged sidecar locations.
 
 ## Coding Style & Naming
 
@@ -49,6 +53,7 @@ python -m desktop_backend.app
 ## Testing Guidelines
 
 - Python tests use `unittest`; keep coverage focused on sidecar handlers, workflows, storage, and repo-level guardrails.
+- Prefer `conda run -n wechat-scraper python -m unittest tests.test_electron_only_repo -v` after repo-doc or packaging changes.
 - Desktop tests use `vitest` under `desktop/src/renderer/**/*.test.tsx`.
 - Electron smoke coverage lives under `desktop/tests/e2e/`.
 - Avoid adding tests that require real WeChat UI interaction in CI; keep those as manual scripts/docs.
@@ -67,3 +72,4 @@ python -m desktop_backend.app
 - Do not commit local artifacts: `config/`, `data/`, databases, or scraped outputs.
 - Stage 1 uses `pyautogui` and can move/click the mouse; keep the failsafe behavior intact and document any changes.
 - Empty-content articles are tracked by DB content (`status='scraped'` with blank `content_html`), not by a separate status value.
+- If you change packaging or startup behavior, update both `README.md` and `docs/electron-desktop-ui.md` in the same change.

@@ -69,7 +69,12 @@ function BackendStatusDot({ status }: { status: BackendStatus }) {
   const copy = renderBackendCopy(status);
 
   return (
-    <div className="px-3 py-2 text-xs text-gray-500">
+    <div
+      role="status"
+      aria-label="后端状态"
+      aria-live="polite"
+      className="px-3 py-2 text-xs text-gray-500"
+    >
       <div className="flex items-center gap-2">
         <Circle className={cn("h-2.5 w-2.5 fill-current", color)} />
         <span className="truncate">{copy.title}</span>

@@ -261,7 +261,8 @@ class Database:
         cursor = conn.cursor()
         placeholders = ",".join(["?"] * len(article_ids))
         cursor.execute(f"""
-            SELECT id, url
+            SELECT id, url, title, publish_time, scraped_at, file_path, status,
+                   CASE WHEN {self.EMPTY_CONTENT_CONDITION} THEN 1 ELSE 0 END AS is_empty_content
             FROM articles
             WHERE id IN ({placeholders})
             ORDER BY id

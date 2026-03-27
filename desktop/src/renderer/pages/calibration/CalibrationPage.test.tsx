@@ -310,6 +310,54 @@ describe("CalibrationPage", () => {
     });
   });
 
+  it("stops polling after a calibration task finishes", async () => {
+    vi.useFakeTimers();
+    vi.mocked(startCalibrationTask).mockResolvedValue({ task_id: "calibration-1" });
+    vi.mocked(getTaskSnapshot).mockResolvedValue(
+      createSnapshot({
+        active: false,
+        events: [
+          {
+            type: "started",
+            task_id: "calibration-1",
+            task_type: "calibration",
+          },
+          {
+            type: "completed",
+            task_id: "calibration-1",
+            task_type: "calibration",
+          },
+        ],
+      }),
+    );
+
+    const { container, root } = await renderCalibrationPage();
+    const startButton = container.querySelector<HTMLButtonElement>('button[name="calibration-start-article_click_area"]');
+
+    if (!startButton) {
+      throw new Error("expected article_click_area calibration button");
+    }
+
+    await act(async () => {
+      startButton.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const settledCallCount = vi.mocked(getTaskSnapshot).mock.calls.length;
+
+    await act(async () => {
+      vi.advanceTimersByTime(3000);
+      await Promise.resolve();
+    });
+
+    expect(getTaskSnapshot).toHaveBeenCalledTimes(settledCallCount);
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
+
   it("does not submit blank integer responses", async () => {
     vi.useFakeTimers();
     vi.mocked(startCalibrationTask).mockResolvedValue({ task_id: "calibration-1" });

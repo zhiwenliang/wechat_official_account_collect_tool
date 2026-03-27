@@ -74,6 +74,7 @@ function useCalibrationTaskWorkflow() {
     }
 
     let cancelled = false;
+    let intervalId: number | undefined;
 
     const syncTaskSnapshot = async () => {
       try {
@@ -90,6 +91,10 @@ function useCalibrationTaskWorkflow() {
         if (!nextSnapshot.active) {
           setIsStopping(false);
           setIsResponding(false);
+          if (intervalId !== undefined) {
+            window.clearInterval(intervalId);
+            intervalId = undefined;
+          }
         }
       } catch (_error: unknown) {
         if (!cancelled) {
@@ -100,7 +105,7 @@ function useCalibrationTaskWorkflow() {
     };
 
     void syncTaskSnapshot();
-    const intervalId = window.setInterval(() => {
+    intervalId = window.setInterval(() => {
       void syncTaskSnapshot();
     }, CALIBRATION_POLL_INTERVAL_MS);
 

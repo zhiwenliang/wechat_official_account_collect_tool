@@ -64,7 +64,7 @@ Electron 主进程会按以下顺序寻找 sidecar：
 
 如果 sidecar 启动失败，桌面界面会保留并显示错误状态。
 
-## 常用开发命令
+## 常用开发与验证命令
 
 ```bash
 npm --prefix desktop run dev
@@ -72,13 +72,23 @@ npm --prefix desktop run build
 npm --prefix desktop run package:desktop
 npm --prefix desktop run typecheck
 npm --prefix desktop run test
+npm --prefix desktop run e2e
 ```
 
 Python 侧验证：
 
 ```bash
+conda run -n wechat-scraper python -m unittest tests.test_electron_only_repo -v
 conda run -n wechat-scraper python -m unittest tests.test_desktop_backend_queries -v
 conda run -n wechat-scraper python -m unittest tests.test_desktop_backend_server -v
+```
+
+推荐的最小回归验证组合：
+
+```bash
+conda run -n wechat-scraper python -m unittest tests.test_electron_only_repo -v
+npm --prefix desktop run typecheck
+npm --prefix desktop run test
 ```
 
 ## 打包说明
@@ -95,6 +105,8 @@ npm --prefix desktop run package:desktop
 - 开发或测试时使用 `DESKTOP_BACKEND_PYTHON` 指向可用的 Python
 - 自定义打包布局时使用 `DESKTOP_BACKEND_EXECUTABLE`
 - 正式分发时把 frozen sidecar 放到 Electron 资源目录约定的位置
+
+如果你改动了启动或打包逻辑，也应同步更新 [`docs/electron-desktop-ui.md`](docs/electron-desktop-ui.md)。
 
 ## 运行时数据
 
@@ -117,6 +129,7 @@ npm --prefix desktop run package:desktop
 - 打包后的应用一闪而退：检查运行时目录中的启动日志
 - macOS 未签名应用无法直接打开：可在目标机器上手动移除 quarantine，或使用 Developer ID 签名并完成 notarization
 - 采集前请先在桌面应用的校准页面完成坐标校准；Stage 1 会真实移动和点击鼠标
+- 如果切到新的 git worktree，记得在该 worktree 内重新执行 `npm --prefix desktop install`，因为 `desktop/node_modules` 不会自动共享
 
 ## 仓库结构
 

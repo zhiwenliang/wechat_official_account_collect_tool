@@ -10,12 +10,25 @@ function resolvePythonExecutable() {
   }
 
   if (process.env.CONDA_PREFIX) {
-    const candidate = path.join(
+    const activeEnvCandidate =
+      process.env.CONDA_DEFAULT_ENV === "wechat-scraper"
+        ? path.join(
+            process.env.CONDA_PREFIX,
+            process.platform === "win32" ? "python.exe" : "bin/python",
+          )
+        : null;
+    if (activeEnvCandidate && fs.existsSync(activeEnvCandidate)) {
+      return activeEnvCandidate;
+    }
+
+    const namedEnvCandidate = path.join(
       process.env.CONDA_PREFIX,
-      process.platform === "win32" ? "python.exe" : "bin/python",
+      "envs",
+      "wechat-scraper",
+      process.platform === "win32" ? "python.exe" : path.join("bin", "python"),
     );
-    if (fs.existsSync(candidate)) {
-      return candidate;
+    if (fs.existsSync(namedEnvCandidate)) {
+      return namedEnvCandidate;
     }
   }
 
@@ -23,6 +36,19 @@ function resolvePythonExecutable() {
   if (userProfile) {
     const candidate = path.join(userProfile, ".conda", "envs", "wechat-scraper", "python.exe");
     if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  const unixCandidates = [
+    path.join(process.env.HOME ?? "", "miniconda3", "envs", "wechat-scraper", "bin", "python"),
+    path.join(process.env.HOME ?? "", "anaconda3", "envs", "wechat-scraper", "bin", "python"),
+    "/opt/homebrew/anaconda3/envs/wechat-scraper/bin/python",
+    "/opt/homebrew/Caskroom/miniconda/base/envs/wechat-scraper/bin/python",
+    "/usr/local/Caskroom/miniconda/base/envs/wechat-scraper/bin/python",
+  ];
+  for (const candidate of unixCandidates) {
+    if (candidate && fs.existsSync(candidate)) {
       return candidate;
     }
   }
