@@ -11,7 +11,7 @@ import {
 
 import { getBackendStatus } from "./lib/api";
 import { cn } from "./lib/utils";
-import type { BackendStatus } from "./lib/task-events";
+import type { BackendStatus } from "../shared/desktop-contract";
 import { ArticlesPage } from "./pages/articles/ArticlesPage";
 import { DashboardPage } from "./pages/dashboard/DashboardPage";
 import { CalibrationPage } from "./pages/calibration/CalibrationPage";

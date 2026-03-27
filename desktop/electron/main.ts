@@ -5,7 +5,7 @@ import path from "node:path";
 
 import { app, BrowserWindow, ipcMain } from "electron";
 
-import type { BackendHealth, BackendStatus } from "../src/renderer/lib/task-events";
+import type { BackendHealth, BackendStatus } from "../src/shared/desktop-contract";
 import { RetryableStartup } from "./retryable-startup";
 
 const DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL ?? "http://localhost:5173";
