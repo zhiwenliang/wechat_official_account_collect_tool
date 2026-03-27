@@ -6,8 +6,6 @@ Compatibility facade over ``calibration_config``, ``calibration_desktop``, and
 """
 from __future__ import annotations
 
-from utils.runtime_env import resolve_runtime_path
-
 from services.calibration_config import (
     COORDINATES_RELATIVE_PATH,
     COPY_LINK_COUNTDOWN_SECONDS,
@@ -79,7 +77,6 @@ __all__ = [
     "ClickOptionalFn",
     "StopCheckerFn",
     "CalibrationCancelled",
-    "resolve_runtime_path",
     "get_coordinates_path",
     "create_default_coordinates_config",
     "load_coordinates_config",

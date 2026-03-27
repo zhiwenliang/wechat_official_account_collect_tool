@@ -294,7 +294,7 @@ class DesktopBackendTaskTests(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             config_path = Path(temp_dir) / "config" / "coordinates.json"
 
-            with mock.patch("services.calibration_service.resolve_runtime_path", return_value=config_path):
+            with mock.patch("services.calibration_config.resolve_runtime_path", return_value=config_path):
                 server = create_server(
                     host="127.0.0.1",
                     port=0,
@@ -365,7 +365,7 @@ class DesktopBackendTaskTests(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             config_path = Path(temp_dir) / "config" / "coordinates.json"
 
-            with mock.patch("services.calibration_service.resolve_runtime_path", return_value=config_path):
+            with mock.patch("services.calibration_config.resolve_runtime_path", return_value=config_path):
                 server = create_server(
                     host="127.0.0.1",
                     port=0,

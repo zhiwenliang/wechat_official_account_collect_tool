@@ -7,6 +7,8 @@ import json
 from pathlib import Path
 from typing import Optional, Protocol
 
+from utils.runtime_env import resolve_runtime_path
+
 COORDINATES_RELATIVE_PATH = Path("config") / "coordinates.json"
 COPY_LINK_COUNTDOWN_SECONDS = 10
 OPEN_TABS_CLICKS = 20
@@ -21,9 +23,7 @@ class PointLike(Protocol):
 
 def get_coordinates_path() -> Path:
     """Return the writable coordinates config path."""
-    import services.calibration_service as _calibration_facade
-
-    return _calibration_facade.resolve_runtime_path(COORDINATES_RELATIVE_PATH)
+    return resolve_runtime_path(COORDINATES_RELATIVE_PATH)
 
 
 def create_default_coordinates_config() -> dict:
