@@ -82,3 +82,13 @@ python -m desktop_backend.app
 - Stage 1 uses `pyautogui` and can move/click the mouse; keep the failsafe behavior intact and document any changes.
 - Empty-content articles are tracked by DB content (`status='scraped'` with blank `content_html`), not by a separate status value.
 - If you change packaging or startup behavior, update both `README.md` and `docs/electron-desktop-ui.md` in the same change.
+
+## Learned User Preferences
+
+- For large-scale layout or architecture refactors, prefer phased work (extract layer boundaries, split oversized modules, align features, cleanup) and keep the tree runnable between phases using compatibility re-exports instead of a single rename-everything pass.
+- They may ask for an explicit task list and either execute it step-by-step or continue the remaining items automatically once the approach is validated.
+
+## Learned Workspace Facts
+
+- Desktop Playwright and Electron smoke helpers should resolve the `wechat-scraper` Conda interpreter reliably; using `CONDA_PREFIX` alone can select base Conda when `CONDA_DEFAULT_ENV` is `base` instead of the project environment.
+- With `CI` set in the environment, Playwright’s `reuseExistingServer` behavior is typically off, which can surface preview-port conflicts during local E2E runs if a server already holds the configured port.
