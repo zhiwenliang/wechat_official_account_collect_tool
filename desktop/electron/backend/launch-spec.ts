@@ -12,6 +12,8 @@ export type BackendLaunchSpec = {
 
 export type ResolveBackendLaunchSpecDeps = {
   env: NodeJS.ProcessEnv;
+  /** Snapshotted at main-process load (`process.env.DESKTOP_BACKEND_MODULE ?? "desktop_backend.app"`). */
+  backendModule: string;
   isPackaged: boolean;
   resourcesPath: string;
   repositoryRoot: string;
@@ -88,7 +90,7 @@ function resolvePackagedSidecarExecutable(deps: ResolveBackendLaunchSpecDeps) {
 
 export function resolveBackendLaunchSpec(port: number, deps: ResolveBackendLaunchSpecDeps): BackendLaunchSpec {
   const commonArgs = ["--host", BACKEND_HOST, "--port", String(port)];
-  const backendModule = deps.env.DESKTOP_BACKEND_MODULE ?? "desktop_backend.app";
+  const { backendModule } = deps;
 
   if (hasText(deps.env.DESKTOP_BACKEND_EXECUTABLE)) {
     const executable = resolvePackagedSidecarExecutable(deps);

@@ -7,11 +7,13 @@ import { resolveBackendLaunchSpec } from "./launch-spec";
 describe("resolveBackendLaunchSpec", () => {
   const repositoryRoot = "/repo/root";
   const resourcesPath = "/app/resources";
+  const defaultModule = "desktop_backend.app";
 
   it("uses DESKTOP_BACKEND_EXECUTABLE when the file exists", () => {
     const executable = "/opt/sidecar/desktop-backend";
     const spec = resolveBackendLaunchSpec(8765, {
       env: { DESKTOP_BACKEND_EXECUTABLE: executable },
+      backendModule: defaultModule,
       isPackaged: false,
       resourcesPath,
       repositoryRoot,
@@ -32,6 +34,7 @@ describe("resolveBackendLaunchSpec", () => {
         DESKTOP_BACKEND_EXECUTABLE: executable,
         DESKTOP_BACKEND_CWD: "/custom/workdir",
       },
+      backendModule: defaultModule,
       isPackaged: false,
       resourcesPath,
       repositoryRoot,
@@ -46,6 +49,7 @@ describe("resolveBackendLaunchSpec", () => {
     expect(() =>
       resolveBackendLaunchSpec(1, {
         env: { DESKTOP_BACKEND_EXECUTABLE: "/missing/desktop-backend" },
+        backendModule: defaultModule,
         isPackaged: false,
         resourcesPath,
         repositoryRoot,
@@ -58,6 +62,7 @@ describe("resolveBackendLaunchSpec", () => {
   it("prefers explicit DESKTOP_BACKEND_PYTHON over packaged and dev defaults", () => {
     const spec = resolveBackendLaunchSpec(3000, {
       env: { DESKTOP_BACKEND_PYTHON: "/usr/local/bin/python3" },
+      backendModule: defaultModule,
       isPackaged: true,
       resourcesPath,
       repositoryRoot,
@@ -79,8 +84,8 @@ describe("resolveBackendLaunchSpec", () => {
     const spec = resolveBackendLaunchSpec(4000, {
       env: {
         DESKTOP_BACKEND_PYTHON: "/venv/bin/python",
-        DESKTOP_BACKEND_MODULE: "my_backend.app",
       },
+      backendModule: "my_backend.app",
       isPackaged: false,
       resourcesPath,
       repositoryRoot,
@@ -99,10 +104,32 @@ describe("resolveBackendLaunchSpec", () => {
     expect(spec.description).toContain("my_backend.app");
   });
 
+  it("uses snapshotted backend module even if env DESKTOP_BACKEND_MODULE changes later", () => {
+    const env: NodeJS.ProcessEnv = {
+      DESKTOP_BACKEND_PYTHON: "/venv/bin/python",
+      DESKTOP_BACKEND_MODULE: "initial.env.value",
+    };
+    const deps = {
+      env,
+      backendModule: "snapshotted.module",
+      isPackaged: false,
+      resourcesPath,
+      repositoryRoot,
+      platform: "linux" as const,
+      existsSync: () => false,
+    };
+
+    expect(resolveBackendLaunchSpec(1, deps).args[1]).toBe("snapshotted.module");
+
+    env.DESKTOP_BACKEND_MODULE = "mutated.env.value";
+    expect(resolveBackendLaunchSpec(2, { ...deps, env }).args[1]).toBe("snapshotted.module");
+  });
+
   it("selects packaged sidecar under resources when isPackaged and no python override", () => {
     const sidecarPath = path.join(resourcesPath, "sidecar", "desktop-backend");
     const spec = resolveBackendLaunchSpec(5000, {
       env: {},
+      backendModule: defaultModule,
       isPackaged: true,
       resourcesPath,
       repositoryRoot,
@@ -118,6 +145,7 @@ describe("resolveBackendLaunchSpec", () => {
     const fallback = path.join(resourcesPath, "desktop-backend");
     const spec = resolveBackendLaunchSpec(5001, {
       env: {},
+      backendModule: defaultModule,
       isPackaged: true,
       resourcesPath,
       repositoryRoot,
@@ -131,6 +159,7 @@ describe("resolveBackendLaunchSpec", () => {
   it("uses development python defaults when not packaged and no overrides", () => {
     const spec = resolveBackendLaunchSpec(6000, {
       env: {},
+      backendModule: defaultModule,
       isPackaged: false,
       resourcesPath,
       repositoryRoot,
@@ -140,6 +169,7 @@ describe("resolveBackendLaunchSpec", () => {
 
     expect(spec.command).toBe("python3");
     expect(spec.args[0]).toBe("-m");
+    expect(spec.args[1]).toBe(defaultModule);
     expect(spec.cwd).toBe(repositoryRoot);
   });
 
@@ -147,6 +177,7 @@ describe("resolveBackendLaunchSpec", () => {
     const condaPython = path.join("/conda", "bin", "python");
     const spec = resolveBackendLaunchSpec(7000, {
       env: { CONDA_PREFIX: "/conda" },
+      backendModule: defaultModule,
       isPackaged: false,
       resourcesPath,
       repositoryRoot,

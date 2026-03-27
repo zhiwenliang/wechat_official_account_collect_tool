@@ -7,6 +7,7 @@ import { PythonSidecarController } from "./backend/sidecar-controller";
 import { createMainWindow } from "./windows/create-main-window";
 
 const DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL ?? "http://localhost:5173";
+const DEFAULT_BACKEND_MODULE = process.env.DESKTOP_BACKEND_MODULE ?? "desktop_backend.app";
 
 function getRepositoryRoot() {
   return path.resolve(__dirname, "..", "..");
@@ -14,6 +15,7 @@ function getRepositoryRoot() {
 
 const backend = new PythonSidecarController(() => ({
   env: process.env,
+  backendModule: DEFAULT_BACKEND_MODULE,
   isPackaged: app.isPackaged,
   resourcesPath: process.resourcesPath,
   repositoryRoot: getRepositoryRoot(),
