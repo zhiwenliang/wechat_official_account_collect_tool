@@ -137,6 +137,17 @@ class DesktopBackendStructureTests(unittest.TestCase):
         self.assertTrue(callable(get_articles_handler))
         self.assertTrue(callable(get_recent_articles_handler))
 
+    def test_statistics_module_exports_handler_and_payload_builders(self) -> None:
+        from desktop_backend.statistics import (
+            StatisticsPayload,
+            build_statistics_payload,
+            get_statistics_handler,
+        )
+
+        self.assertTrue(callable(get_statistics_handler))
+        self.assertTrue(callable(build_statistics_payload))
+        self.assertTrue(isinstance(StatisticsPayload, type))
+
     def test_query_handlers_re_exports_article_domain_handlers(self) -> None:
         import desktop_backend.articles.command_handlers as article_commands
         import desktop_backend.articles.query_handlers as article_queries

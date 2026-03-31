@@ -8,7 +8,7 @@ from desktop_backend.articles.query_handlers import (
     get_recent_articles_handler,
 )
 from desktop_backend.http.parsing import parse_bool, parse_int
-from desktop_backend.query_handlers import get_statistics_handler
+from desktop_backend.statistics import get_statistics_handler
 from desktop_backend.tasks.calibration.status import get_calibration_status_handler
 from storage.database import Database
 
