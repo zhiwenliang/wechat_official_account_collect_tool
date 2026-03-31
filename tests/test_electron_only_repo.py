@@ -57,6 +57,24 @@ class ElectronOnlyRepoTests(unittest.TestCase):
             self.assertNotIn(snippet, agents)
             self.assertNotIn(snippet, claude)
 
+    def test_contributor_docs_do_not_reference_removed_desktop_backend_shims(self) -> None:
+        readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+        agents = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+        claude = (REPO_ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+        combined = "\n".join((readme, agents, claude))
+
+        removed_shim_paths = (
+            "desktop_backend/task_handlers.py",
+            "desktop_backend/tasks/handlers.py",
+            "desktop_backend/tasks/registry.py",
+            "desktop_backend/tasks/events.py",
+            "desktop_backend/tasks/calibration_worker.py",
+            "desktop_backend/query_handlers.py",
+            "desktop_backend/schemas.py",
+        )
+        for path in removed_shim_paths:
+            self.assertNotIn(path, combined, msg=f"Unexpected removed shim path reference: {path}")
+
 
 if __name__ == "__main__":
     unittest.main()

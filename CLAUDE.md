@@ -95,11 +95,14 @@ conda run -n wechat-scraper python -m unittest tests.test_electron_only_repo -v
 **Python Sidecar** (`desktop_backend/`)
 - Stdlib HTTP server (`server.py`) with auto-assigned port (default `0`)
 - Spawned by `desktop/electron/main.ts` with retryable startup logic (`electron/retryable-startup.ts`)
-- `app.py`: server factory, wires handlers and task registry
+- `app.py`: server factory, wires GET/POST task routes, article commands, and the task registry
+- `server_routes.py` / `server_runtime.py` / `server_json.py`: HTTP routing, request dispatch, and JSON helpers
 - `task_registry.py`: manages running background tasks
-- `desktop_backend/articles/`: article-facing HTTP handlers, commands, and article payload builders; `query_handlers.py` and `schemas.py` still re-export from here so existing imports and routing stay stable.
-- `desktop_backend/tasks/calibration/`, `desktop_backend/tasks/collection/`, and `desktop_backend/tasks/scraping/`: calibration, collection, and scraping task workers and helpers; `task_handlers.py` and related `tasks/` modules still provide compatibility wiring for the task registry.
-- `task_events.py`: typed event and prompt schemas for SSE streaming
+- `task_events.py`: typed events and prompts for SSE streaming
+- `statistics.py`: statistics handlers used by article list and dashboard routes
+- `tasks/workflow_handlers.py`: starts and stops collection, scraping, and calibration tasks through the registry
+- `desktop_backend/articles/`: article-facing HTTP handlers, commands, and payloads (`query_handlers.py`, `command_handlers.py`, `payloads.py`)
+- `desktop_backend/tasks/calibration/`, `desktop_backend/tasks/collection/`, and `desktop_backend/tasks/scraping/`: calibration, collection, and scraping workers and runners
 - `import_export_handlers.py`: data bundle export and database import
 - `runtime.py`: host/port constants and port-availability checks
 
