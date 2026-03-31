@@ -152,6 +152,7 @@ class DesktopBackendStructureTests(unittest.TestCase):
         import desktop_backend.articles.command_handlers as article_commands
         import desktop_backend.articles.query_handlers as article_queries
         import desktop_backend.query_handlers as query_handlers
+        import desktop_backend.statistics as statistics
 
         self.assertIs(
             query_handlers.MAX_ARTICLES_PAGE_SIZE,
@@ -181,10 +182,15 @@ class DesktopBackendStructureTests(unittest.TestCase):
             query_handlers.retry_failed_articles_handler,
             article_commands.retry_failed_articles_handler,
         )
+        self.assertIs(
+            query_handlers.get_statistics_handler,
+            statistics.get_statistics_handler,
+        )
 
     def test_schemas_re_exports_article_payload_types_and_builders(self) -> None:
         import desktop_backend.articles.payloads as article_payloads
         import desktop_backend.schemas as schemas
+        import desktop_backend.statistics as statistics
 
         self.assertIs(
             schemas.ArticleDetailPayload,
@@ -211,6 +217,11 @@ class DesktopBackendStructureTests(unittest.TestCase):
         self.assertIs(
             schemas.build_recent_article_payload,
             article_payloads.build_recent_article_payload,
+        )
+        self.assertIs(schemas.StatisticsPayload, statistics.StatisticsPayload)
+        self.assertIs(
+            schemas.build_statistics_payload,
+            statistics.build_statistics_payload,
         )
 
     def test_task_domain_runner_modules_exist(self) -> None:
