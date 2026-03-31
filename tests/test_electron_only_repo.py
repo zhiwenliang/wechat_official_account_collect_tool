@@ -75,6 +75,41 @@ class ElectronOnlyRepoTests(unittest.TestCase):
         for path in removed_shim_paths:
             self.assertNotIn(path, combined, msg=f"Unexpected removed shim path reference: {path}")
 
+    def test_contributor_docs_describe_bundled_sidecar_packaging(self) -> None:
+        readme_raw = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+        desktop_raw = (
+            REPO_ROOT / "docs" / "electron-desktop-ui.md"
+        ).read_text(encoding="utf-8")
+        readme = readme_raw.lower()
+        desktop_doc = desktop_raw.lower()
+        required_phrases = (
+            "frozen python sidecar",
+            "native platform",
+            "resources/sidecar",
+            "package:desktop",
+            "build:sidecar",
+            "build_desktop_sidecar.py",
+            "ms-playwright",
+            "playwright install chromium",
+            "playwright_browsers_path",
+        )
+        for phrase in required_phrases:
+            with self.subTest(phrase=phrase, doc="README.md"):
+                self.assertIn(phrase, readme)
+            with self.subTest(
+                phrase=phrase,
+                doc="docs/electron-desktop-ui.md",
+            ):
+                self.assertIn(phrase, desktop_doc)
+        self.assertIn("DESKTOP_BACKEND_EXECUTABLE", readme_raw)
+        self.assertIn("DESKTOP_BACKEND_EXECUTABLE", desktop_raw)
+        self.assertIn("开发与调试", readme_raw)
+        self.assertIn("非最终用户", readme_raw)
+        self.assertIn("python -m desktop_backend.app", readme)
+        self.assertIn("python -m desktop_backend.app", desktop_doc)
+        self.assertIn("development", desktop_doc)
+        self.assertIn("debug", desktop_doc)
+
 
 if __name__ == "__main__":
     unittest.main()

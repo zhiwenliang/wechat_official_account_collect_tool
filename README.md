@@ -74,6 +74,7 @@ Electron 主进程会按以下顺序寻找 sidecar：
 ```bash
 npm --prefix desktop run dev
 npm --prefix desktop run build
+npm --prefix desktop run build:sidecar
 npm --prefix desktop run package:desktop
 npm --prefix desktop run typecheck
 npm --prefix desktop run test
@@ -99,18 +100,50 @@ npm --prefix desktop run test
 
 ## 打包说明
 
-Electron 桌面壳是唯一支持的分发路径。
+Electron 桌面壳是唯一支持的分发路径。**完整、可独立分发的安装包必须包含 frozen Python sidecar**（PyInstaller 将 `desktop_backend` 打成原生可执行文件），否则最终用户机器上仍需自行准备 Python 与依赖。
+
+Stage 2 抓取依赖 Playwright Chromium。**打包前在构建机上执行 `playwright install chromium`**（与 `pip install -r requirements.txt` 同一 Conda 环境），以便 `scripts/build_desktop_sidecar.py` 能把本机 Playwright 缓存中 **与 Chromium 抓取相关的条目**（`chromium-*`、`chromium_headless_shell-*`、存在的 `ffmpeg-*`）复制到 `build/desktop-sidecar/ms-playwright/`，而不会把 Firefox/WebKit 等一并打入包内。electron-builder 会把它与可执行文件一并放入 **`resources/sidecar/ms-playwright/`**。冻结运行的 sidecar 会通过 `PLAYWRIGHT_BROWSERS_PATH` 指向该目录（由 `configure_runtime_environment()` 设置）；也可用环境变量 `PLAYWRIGHT_BROWSERS_PATH` 覆盖安装源或调试路径。
+
+### 推荐流程（`package:desktop`）
 
 ```bash
 npm --prefix desktop run build
 npm --prefix desktop run package:desktop
 ```
 
-当前打包流程默认只负责 Electron 壳和前端资源。若要在打包产物中直接运行采集能力，需要让 Electron 能定位到 sidecar：
+`package:desktop`（以及 `package:desktop:dir`）会在调用 electron-builder **之前**先构建 frozen Python sidecar：产物落在仓库根目录的 `build/desktop-sidecar/`，再由 Electron 打包配置复制到应用包内的 **`resources/sidecar/`**（例如 `resources/sidecar/desktop-backend` 或 `desktop-backend.exe`）。运行时主进程会按 [`docs/electron-desktop-ui.md`](docs/electron-desktop-ui.md) 中的顺序解析可执行文件。
 
-- 开发或测试时使用 `DESKTOP_BACKEND_PYTHON` 指向可用的 Python
-- 自定义打包布局时使用 `DESKTOP_BACKEND_EXECUTABLE`
-- 正式分发时把 frozen sidecar 放到 Electron 资源目录约定的位置
+### 仅构建 sidecar（不打包 Electron）
+
+需要单独刷新 PyInstaller 产物时使用（与 `package:desktop` 中的步骤相同）：
+
+```bash
+npm --prefix desktop run build:sidecar
+```
+
+等价于在**仓库根目录**、已激活 `wechat-scraper` 环境时执行：
+
+```bash
+python scripts/build_desktop_sidecar.py
+```
+
+### 原生平台构建（native platform）
+
+- **macOS** 安装包应在 **macOS** 上执行 `package:desktop`（或 `package:desktop:dir`）。
+- **Windows** 安装包应在 **Windows** 上执行相同脚本。
+
+交叉编译 frozen sidecar 与 Electron 原生依赖不可靠，发布前请在目标 **native platform** 上完整打一次包并冒烟验证。
+
+### 开发与调试（非最终用户路径）
+
+日常开发仍可直接用 Python 启动 sidecar，便于查看日志与断点：
+
+```bash
+conda activate wechat-scraper
+python -m desktop_backend.app
+```
+
+再配合 `npm --prefix desktop run dev`，或由 Electron 通过 `DESKTOP_BACKEND_PYTHON` / 当前 Conda 环境自动拉起。自定义布局或 CI 覆盖物可使用 `DESKTOP_BACKEND_EXECUTABLE`。
 
 如果你改动了启动或打包逻辑，也应同步更新 [`docs/electron-desktop-ui.md`](docs/electron-desktop-ui.md)。
 

@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 from typing import Any
 
+from utils.runtime_env import configure_runtime_environment
+
 from .runtime import DEFAULT_HOST, DEFAULT_PORT
 from .server import DesktopBackendServer
 from .import_export_handlers import export_data_bundle_handler, import_database_handler
@@ -165,6 +167,8 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    configure_runtime_environment()
 
     server = create_server(host=args.host, port=args.port)
 

@@ -5,7 +5,7 @@ This document describes the supported Electron desktop product and the Python si
 ## Developer Startup
 
 - Install frontend dependencies with `npm --prefix desktop install`.
-- Start the Python sidecar with `python -m desktop_backend.app` when you want backend logs in a separate terminal.
+- For **development and debugging only**, start the Python sidecar with `python -m desktop_backend.app` when you want backend logs in a separate terminal (not the end-user workflow).
 - Start the Electron development app with `npm --prefix desktop run dev`.
 
 ## Sidecar Resolution Rules
@@ -19,9 +19,17 @@ The Electron main process resolves the backend in this order:
 
 If the backend cannot be found or fails to start, the Electron app must stay open and show the startup error.
 
+## Building the frozen sidecar only
+
+- `npm --prefix desktop run build:sidecar` runs `desktop/scripts/build-sidecar.mjs`, which invokes `python scripts/build_desktop_sidecar.py` from the **repository root** (same as the pre-step inside `package:desktop`).
+- Use this when you want `build/desktop-sidecar/` refreshed without running electron-builder.
+
 ## Packaged App Behavior
 
-- Packaged builds look for a frozen sidecar under the Electron resources directory, typically `resources/sidecar/desktop-backend.exe` on Windows.
+- A **standalone distributable requires the frozen Python sidecar** bundled inside the Electron app. Running `npm --prefix desktop run package:desktop` (or `package:desktop:dir`) builds that sidecar first (same as `npm --prefix desktop run build:sidecar`, i.e. `python scripts/build_desktop_sidecar.py` from the repo root), then packages the shell; electron-builder copies the binary into **`resources/sidecar/`** as `desktop-backend` (macOS/Linux) or `desktop-backend.exe` (Windows).
+- **Playwright Chromium for packaged scraping:** the build machine must run **`playwright install chromium`** before `build:sidecar` / `package:desktop`. The sidecar build copies **Chromium-related** entries from the local Playwright cache (`chromium-*`, `chromium_headless_shell-*`, `ffmpeg-*` when present) into `build/desktop-sidecar/ms-playwright/`, omitting other browsers such as Firefox or WebKit. extraResources ships **`resources/sidecar/ms-playwright/`** next to the executable. On startup, `configure_runtime_environment()` sets **`PLAYWRIGHT_BROWSERS_PATH`** for frozen runs when that directory is present (unless already set).
+- **Native platform builds:** produce the macOS artifact on macOS and the Windows artifact on Windows. Do not rely on cross-compiling the frozen Python sidecar or native Node modules; validate on each **native platform** before release.
+- Packaged builds resolve the sidecar under the Electron resources directory, e.g. `resources/sidecar/desktop-backend` or `resources/sidecar/desktop-backend.exe`.
 - The sidecar resolves runtime config and data paths through `utils.runtime_env`, so packaged builds write outside the repository checkout.
 - Startup failures should be visible both in the UI and in the startup log.
 
@@ -36,5 +44,6 @@ If the backend cannot be found or fails to start, the Electron app must stay ope
 
 ## Known Limitations
 
-- The Electron build packages the shell and frontend resources, not a signed Python installer.
-- Release automation still needs to provide the frozen Python sidecar executable or place it at the expected resources path.
+- The Electron build packages the shell and frontend resources, not a signed Python installer from python.org.
+- Packaged scraping assumes the **same OS family** as the build machine that ran `playwright install chromium` (staged under `ms-playwright`). Switching OS or Playwright major versions may require a fresh install and rebuild.
+- CI must run `package:desktop` on the **native platform** it targets, with the `wechat-scraper` Conda env (or `DESKTOP_BACKEND_PYTHON`), and must run **`playwright install chromium`** before the sidecar build so `ms-playwright` can be staged.

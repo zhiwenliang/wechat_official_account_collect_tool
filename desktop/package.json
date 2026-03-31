@@ -7,8 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "build:desktop": "vite build",
-    "package:desktop": "npm run build && electron-builder --publish never",
-    "package:desktop:dir": "npm run build && electron-builder --dir --publish never",
+    "build:sidecar": "node scripts/build-sidecar.mjs",
+    "package:desktop": "npm run build && node scripts/build-sidecar.mjs && electron-builder --publish never",
+    "package:desktop:dir": "npm run build && node scripts/build-sidecar.mjs && electron-builder --dir --publish never",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "test": "vitest run",
@@ -56,6 +57,17 @@
       "electron/**",
       "package.json"
     ],
-    "asar": true
+    "asar": true,
+    "extraResources": [
+      {
+        "from": "../build/desktop-sidecar",
+        "to": "sidecar",
+        "filter": [
+          "desktop-backend",
+          "desktop-backend.exe",
+          "ms-playwright/**"
+        ]
+      }
+    ]
   }
 }
