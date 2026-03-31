@@ -11,8 +11,8 @@
     - `desktop/src/renderer/lib/`: client API helpers, utilities, and integrations (for example task-event streaming).
     - `desktop/src/renderer/state/`: Zustand stores and related UI state.
 - `desktop_backend/`: Python sidecar entrypoint, HTTP server, routing, task registry, statistics, and import/export handlers.
-  - `app.py`, `server.py`, `server_routes.py`, `server_runtime.py`, `import_export_handlers.py`, `runtime.py`
-  - `task_registry.py`, `task_events.py`, `statistics.py`, `tasks/workflow_handlers.py`
+  - `desktop_backend/app.py`, `desktop_backend/server.py`, `desktop_backend/server_routes.py`, `desktop_backend/server_runtime.py`, `desktop_backend/import_export_handlers.py`, `desktop_backend/runtime.py`
+  - `desktop_backend/task_registry.py`, `desktop_backend/task_events.py`, `desktop_backend/statistics.py`, `desktop_backend/tasks/workflow_handlers.py`
   - `desktop_backend/articles/`: article HTTP/query handling (`query_handlers.py`, `command_handlers.py`, `payloads.py`).
   - `desktop_backend/tasks/calibration/`: calibration task workers and helpers.
   - `desktop_backend/tasks/collection/`: Stage 1 collection task workers and helpers.
