@@ -2,6 +2,22 @@ import unittest
 
 
 class DesktopBackendStructureTests(unittest.TestCase):
+    def test_package_root_does_not_re_export_migration_article_query_handlers(self) -> None:
+        import desktop_backend as desktop_backend_pkg
+
+        self.assertFalse(
+            hasattr(desktop_backend_pkg, "get_articles_handler"),
+            "import handlers from desktop_backend.articles.query_handlers, not the package root",
+        )
+        self.assertFalse(
+            hasattr(desktop_backend_pkg, "get_recent_articles_handler"),
+            "import handlers from desktop_backend.articles.query_handlers, not the package root",
+        )
+        self.assertFalse(
+            hasattr(desktop_backend_pkg, "get_statistics_handler"),
+            "import get_statistics_handler from desktop_backend.statistics, not the package root",
+        )
+
     def test_http_helper_modules_exist(self) -> None:
         from desktop_backend.http.image_proxy import (
             IMAGE_PROXY_MAX_BYTES,
@@ -62,7 +78,6 @@ class DesktopBackendStructureTests(unittest.TestCase):
         self.assertTrue(hasattr(CalibrationTaskWorker, "submit_response"))
 
     def test_calibration_package_exports_and_status_handler_identity(self) -> None:
-        import desktop_backend.query_handlers as query_handlers
         import desktop_backend.tasks.calibration as calibration_pkg
         from desktop_backend.tasks.calibration import (
             CalibrationTaskWorker,
@@ -87,10 +102,6 @@ class DesktopBackendStructureTests(unittest.TestCase):
             get_calibration_status_handler,
             calibration_status.get_calibration_status_handler,
         )
-        self.assertIs(
-            query_handlers.get_calibration_status_handler,
-            calibration_status.get_calibration_status_handler,
-        )
         self.assertIs(CalibrationTaskWorker, calibration_worker.CalibrationTaskWorker)
         self.assertIs(
             DesktopCalibrationRuntime,
@@ -113,7 +124,11 @@ class DesktopBackendStructureTests(unittest.TestCase):
         self.assertTrue(hasattr(Database, "get_statistics"))
 
     def test_articles_domain_modules_exist(self) -> None:
-        from desktop_backend.articles.command_handlers import delete_selected_articles_handler
+        from desktop_backend.articles.command_handlers import (
+            delete_selected_articles_handler,
+            retry_empty_content_articles_handler,
+            retry_failed_articles_handler,
+        )
         from desktop_backend.articles.payloads import build_article_payload
         from desktop_backend.articles.query_handlers import (
             MAX_ARTICLES_PAGE_SIZE,
@@ -124,10 +139,39 @@ class DesktopBackendStructureTests(unittest.TestCase):
 
         self.assertEqual(MAX_ARTICLES_PAGE_SIZE, 200)
         self.assertTrue(callable(delete_selected_articles_handler))
+        self.assertTrue(callable(retry_empty_content_articles_handler))
+        self.assertTrue(callable(retry_failed_articles_handler))
         self.assertTrue(callable(build_article_payload))
         self.assertTrue(callable(get_article_detail_handler))
         self.assertTrue(callable(get_articles_handler))
         self.assertTrue(callable(get_recent_articles_handler))
+
+    def test_articles_payloads_module_exports_types_and_builders(self) -> None:
+        from desktop_backend.articles.payloads import (
+            ArticleDetailPayload,
+            ArticlePayload,
+            ArticlesPayload,
+            RecentArticlePayload,
+            build_article_detail_payload,
+            build_article_payload,
+            build_articles_payload,
+            build_recent_article_payload,
+        )
+
+        for td in (
+            ArticleDetailPayload,
+            ArticlePayload,
+            ArticlesPayload,
+            RecentArticlePayload,
+        ):
+            self.assertTrue(isinstance(td, type))
+        for fn in (
+            build_article_detail_payload,
+            build_article_payload,
+            build_articles_payload,
+            build_recent_article_payload,
+        ):
+            self.assertTrue(callable(fn))
 
     def test_statistics_module_exports_handler_and_payload_builders(self) -> None:
         from desktop_backend.statistics import (
@@ -139,82 +183,6 @@ class DesktopBackendStructureTests(unittest.TestCase):
         self.assertTrue(callable(get_statistics_handler))
         self.assertTrue(callable(build_statistics_payload))
         self.assertTrue(isinstance(StatisticsPayload, type))
-
-    def test_query_handlers_re_exports_article_domain_handlers(self) -> None:
-        import desktop_backend.articles.command_handlers as article_commands
-        import desktop_backend.articles.query_handlers as article_queries
-        import desktop_backend.query_handlers as query_handlers
-        import desktop_backend.statistics as statistics
-
-        self.assertIs(
-            query_handlers.MAX_ARTICLES_PAGE_SIZE,
-            article_queries.MAX_ARTICLES_PAGE_SIZE,
-        )
-        self.assertIs(
-            query_handlers.get_article_detail_handler,
-            article_queries.get_article_detail_handler,
-        )
-        self.assertIs(
-            query_handlers.get_articles_handler,
-            article_queries.get_articles_handler,
-        )
-        self.assertIs(
-            query_handlers.get_recent_articles_handler,
-            article_queries.get_recent_articles_handler,
-        )
-        self.assertIs(
-            query_handlers.delete_selected_articles_handler,
-            article_commands.delete_selected_articles_handler,
-        )
-        self.assertIs(
-            query_handlers.retry_empty_content_articles_handler,
-            article_commands.retry_empty_content_articles_handler,
-        )
-        self.assertIs(
-            query_handlers.retry_failed_articles_handler,
-            article_commands.retry_failed_articles_handler,
-        )
-        self.assertIs(
-            query_handlers.get_statistics_handler,
-            statistics.get_statistics_handler,
-        )
-
-    def test_schemas_re_exports_article_payload_types_and_builders(self) -> None:
-        import desktop_backend.articles.payloads as article_payloads
-        import desktop_backend.schemas as schemas
-        import desktop_backend.statistics as statistics
-
-        self.assertIs(
-            schemas.ArticleDetailPayload,
-            article_payloads.ArticleDetailPayload,
-        )
-        self.assertIs(schemas.ArticlePayload, article_payloads.ArticlePayload)
-        self.assertIs(schemas.ArticlesPayload, article_payloads.ArticlesPayload)
-        self.assertIs(
-            schemas.RecentArticlePayload,
-            article_payloads.RecentArticlePayload,
-        )
-        self.assertIs(
-            schemas.build_article_detail_payload,
-            article_payloads.build_article_detail_payload,
-        )
-        self.assertIs(
-            schemas.build_article_payload,
-            article_payloads.build_article_payload,
-        )
-        self.assertIs(
-            schemas.build_articles_payload,
-            article_payloads.build_articles_payload,
-        )
-        self.assertIs(
-            schemas.build_recent_article_payload,
-            article_payloads.build_recent_article_payload,
-        )
-        self.assertIs(schemas.StatisticsPayload, statistics.StatisticsPayload)
-        self.assertIs(
-            schemas.build_statistics_payload,
-            statistics.build_statistics_payload,
-        )
 
     def test_task_domain_runner_modules_exist(self) -> None:
         from desktop_backend.tasks.collection.runner import (

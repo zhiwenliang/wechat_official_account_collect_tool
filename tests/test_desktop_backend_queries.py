@@ -6,10 +6,10 @@ from pathlib import Path
 
 from desktop_backend.articles.command_handlers import delete_selected_articles_handler
 from desktop_backend.articles.query_handlers import (
+    get_article_detail_handler,
     get_articles_handler,
     get_recent_articles_handler,
 )
-from desktop_backend.query_handlers import get_article_detail_handler
 from desktop_backend.statistics import get_statistics_handler
 from storage.database import Database
 
