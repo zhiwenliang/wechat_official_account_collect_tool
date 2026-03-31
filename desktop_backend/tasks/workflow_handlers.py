@@ -24,7 +24,7 @@ from .defaults import (
 )
 
 
-class WorkflowTaskHandlersImpl:
+class WorkflowTaskHandlers:
     def __init__(
         self,
         *,
@@ -172,3 +172,6 @@ class WorkflowTaskHandlersImpl:
                 self.task_registry.record_status(task_id, "test_passed", "校准测试通过")
 
         self.task_registry.record_completed(task_id)
+
+
+__all__ = ["WorkflowTaskHandlers"]

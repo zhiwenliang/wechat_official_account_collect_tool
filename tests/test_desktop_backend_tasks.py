@@ -21,6 +21,7 @@ from desktop_backend.task_events import (
     build_stopped_event,
 )
 from desktop_backend.task_registry import TaskRegistry
+from desktop_backend.tasks.workflow_handlers import WorkflowTaskHandlers
 
 
 class FakeCollectionDatabase:
@@ -714,8 +715,6 @@ class DesktopBackendTaskTests(unittest.TestCase):
         self.assertEqual(server.task_registry._tasks, {})
 
     def test_task_route_cleans_up_task_when_worker_thread_fails_to_start(self):
-        from desktop_backend.task_handlers import WorkflowTaskHandlers
-
         server = create_server(host="127.0.0.1", port=0, collector_factory=FakeCollector)
         server.start()
         self.addCleanup(server.stop)
