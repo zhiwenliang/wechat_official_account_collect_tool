@@ -1,4 +1,4 @@
-"""Console entry for PyInstaller one-file desktop-backend builds."""
+"""Console entry for PyInstaller desktop-backend bundles (onedir or legacy onefile)."""
 
 from __future__ import annotations
 

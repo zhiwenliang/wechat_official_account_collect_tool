@@ -27,11 +27,19 @@ class DesktopSidecarPackagingTests(unittest.TestCase):
 
         self.assertEqual(
             build_config.packaged_executable_path(REPO_ROOT, "darwin"),
-            REPO_ROOT / "build" / "desktop-sidecar" / "desktop-backend",
+            REPO_ROOT
+            / "build"
+            / "desktop-sidecar"
+            / "desktop-backend"
+            / "desktop-backend",
         )
         self.assertEqual(
             build_config.packaged_executable_path(REPO_ROOT, "win32"),
-            REPO_ROOT / "build" / "desktop-sidecar" / "desktop-backend.exe",
+            REPO_ROOT
+            / "build"
+            / "desktop-sidecar"
+            / "desktop-backend"
+            / "desktop-backend.exe",
         )
 
     def test_build_output_dir_is_repo_build_desktop_sidecar(self) -> None:
@@ -40,7 +48,7 @@ class DesktopSidecarPackagingTests(unittest.TestCase):
         expected = REPO_ROOT / "build" / "desktop-sidecar"
         self.assertEqual(build_config.build_output_dir(REPO_ROOT), expected)
 
-    def test_spec_is_onefile_without_collect(self) -> None:
+    def test_spec_is_onedir_with_collect(self) -> None:
         spec = (
             REPO_ROOT
             / "desktop_backend"
@@ -48,7 +56,8 @@ class DesktopSidecarPackagingTests(unittest.TestCase):
             / "desktop-backend.spec"
         )
         body = spec.read_text(encoding="utf-8")
-        self.assertNotIn("COLLECT(", body)
+        self.assertIn("COLLECT(", body)
+        self.assertIn("exclude_binaries=True", body)
         self.assertIn("a.binaries", body)
         self.assertIn("a.zipfiles", body)
         self.assertIn("collect_submodules", body)
@@ -94,8 +103,10 @@ class DesktopSidecarPackagingTests(unittest.TestCase):
         )
         filt = match.get("filter")
         self.assertIsInstance(filt, list, msg="sidecar extraResources.filter must be a list")
-        self.assertIn("desktop-backend", filt)
-        self.assertIn("desktop-backend.exe", filt)
+        self.assertTrue(
+            any("desktop-backend" in str(p) for p in filt),
+            msg="extraResources must stage the PyInstaller onedir tree under desktop-backend/",
+        )
         self.assertTrue(
             any("ms-playwright" in str(p) for p in filt),
             msg="extraResources must stage ms-playwright for Playwright browsers",

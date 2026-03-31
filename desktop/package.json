@@ -63,8 +63,7 @@
         "from": "../build/desktop-sidecar",
         "to": "sidecar",
         "filter": [
-          "desktop-backend",
-          "desktop-backend.exe",
+          "desktop-backend/**",
           "ms-playwright/**"
         ]
       }

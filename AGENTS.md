@@ -89,6 +89,8 @@ python -m desktop_backend.app
 
 - For large-scale layout or architecture refactors, prefer phased work (extract layer boundaries, split oversized modules, align features, cleanup) and keep the tree runnable between phases using compatibility re-exports instead of a single rename-everything pass.
 - They may ask for an explicit task list and either execute it step-by-step or continue the remaining items automatically once the approach is validated.
+- When using a clean git worktree for phased work, prefer committing (or otherwise landing) current changes on the main checkout before creating the worktree.
+- When closing out phased work, handle leftover local documentation or editor and tooling state changes in separate commits rather than mixing them into feature-phase merges.
 
 ## Learned Workspace Facts
 

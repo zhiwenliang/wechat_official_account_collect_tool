@@ -21,6 +21,13 @@ const backend = new PythonSidecarController(() => ({
   repositoryRoot: getRepositoryRoot(),
   platform: process.platform,
   existsSync: fs.existsSync.bind(fs),
+  isExecutableFile(filePath: string) {
+    try {
+      return fs.statSync(filePath).isFile();
+    } catch {
+      return false;
+    }
+  },
 }));
 
 ipcMain.handle("desktop:get-backend-status", async () => backend.getStatus());

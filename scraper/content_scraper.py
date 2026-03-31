@@ -2,11 +2,9 @@
 内容抓取模块
 使用Playwright访问文章链接，提取详细内容
 """
-from playwright.sync_api import sync_playwright
-from bs4 import BeautifulSoup
 import re
 from datetime import datetime
-from pathlib import Path
+
 from utils.stop_control import should_stop as stop_requested, sleep_with_stop
 
 class ContentScraper:
@@ -59,6 +57,8 @@ class ContentScraper:
 
     def start(self):
         """启动浏览器"""
+        from playwright.sync_api import sync_playwright
+
         self.playwright = sync_playwright().start()
         self.browser = self.playwright.chromium.launch(headless=False)
         self.page = self.browser.new_page()

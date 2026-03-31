@@ -25,7 +25,12 @@ def packaged_executable_basename(platform: str | None = None) -> str:
 
 
 def packaged_executable_path(repo_root: Path, platform: str | None = None) -> Path:
-    return build_output_dir(repo_root) / packaged_executable_basename(platform)
+    """Path to the PyInstaller onedir console binary (folder + executable name)."""
+    return (
+        build_output_dir(repo_root)
+        / PACKAGED_EXECUTABLE_STEM
+        / packaged_executable_basename(platform)
+    )
 
 
 def build_output_dir(repo_root: Path) -> Path:

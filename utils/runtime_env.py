@@ -21,7 +21,11 @@ def _candidate_runtime_roots() -> list[Path]:
 
     executable = getattr(sys, "executable", None)
     if executable:
-        roots.append(Path(executable).resolve().parent)
+        ep = Path(executable).resolve()
+        roots.append(ep.parent)
+        # PyInstaller onedir: binary lives inside .../sidecar/desktop-backend/;
+        # bundled browsers sit next to that folder under .../sidecar/ms-playwright.
+        roots.append(ep.parent.parent)
 
     roots.append(REPO_ROOT)
     return roots

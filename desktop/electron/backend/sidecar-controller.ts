@@ -6,7 +6,8 @@ import { RetryableStartup } from "../retryable-startup";
 import { resolveBackendLaunchSpec, type ResolveBackendLaunchSpecDeps } from "./launch-spec";
 
 const BACKEND_HOST = "127.0.0.1";
-const BACKEND_STARTUP_TIMEOUT_MS = 15000;
+const DEV_BACKEND_STARTUP_TIMEOUT_MS = 15000;
+const PACKAGED_BACKEND_STARTUP_TIMEOUT_MS = 60000;
 
 type SidecarProcess = ChildProcess & {
   stdout: NodeJS.ReadableStream;
@@ -112,7 +113,11 @@ export class PythonSidecarController {
 
   private async bootstrap() {
     const port = await reservePort(BACKEND_HOST);
-    const launchSpec = resolveBackendLaunchSpec(port, this.getLaunchSpecDeps());
+    const launchSpecDeps = this.getLaunchSpecDeps();
+    const launchSpec = resolveBackendLaunchSpec(port, launchSpecDeps);
+    const startupTimeoutMs = launchSpecDeps.isPackaged
+      ? PACKAGED_BACKEND_STARTUP_TIMEOUT_MS
+      : DEV_BACKEND_STARTUP_TIMEOUT_MS;
 
     this.status = {
       state: "starting",
@@ -155,11 +160,11 @@ export class PythonSidecarController {
       this.child = null;
     });
 
-    await this.waitForHealth(port);
+    await this.waitForHealth(port, startupTimeoutMs);
   }
 
-  private async waitForHealth(port: number) {
-    const deadline = Date.now() + BACKEND_STARTUP_TIMEOUT_MS;
+  private async waitForHealth(port: number, startupTimeoutMs: number) {
+    const deadline = Date.now() + startupTimeoutMs;
     const healthUrl = `http://${BACKEND_HOST}:${port}/health`;
 
     while (Date.now() < deadline) {
@@ -191,6 +196,8 @@ export class PythonSidecarController {
       await sleep(150);
     }
 
-    throw new Error(`Timed out waiting for backend health at ${healthUrl}`);
+    throw new Error(
+      `Timed out waiting for backend health at ${healthUrl} after ${startupTimeoutMs}ms`,
+    );
   }
 }

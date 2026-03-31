@@ -100,7 +100,7 @@ npm --prefix desktop run test
 
 ## 打包说明
 
-Electron 桌面壳是唯一支持的分发路径。**完整、可独立分发的安装包必须包含 frozen Python sidecar**（PyInstaller 将 `desktop_backend` 打成原生可执行文件），否则最终用户机器上仍需自行准备 Python 与依赖。
+Electron 桌面壳是唯一支持的分发路径。**完整、可独立分发的安装包必须包含 frozen Python sidecar**（PyInstaller 将 `desktop_backend` 打成 **onedir** 应用目录：可执行文件在 `desktop-backend/` 内），否则最终用户机器上仍需自行准备 Python 与依赖。
 
 Stage 2 抓取依赖 Playwright Chromium。**打包前在构建机上执行 `playwright install chromium`**（与 `pip install -r requirements.txt` 同一 Conda 环境），以便 `scripts/build_desktop_sidecar.py` 能把本机 Playwright 缓存中 **与 Chromium 抓取相关的条目**（`chromium-*`、`chromium_headless_shell-*`、存在的 `ffmpeg-*`）复制到 `build/desktop-sidecar/ms-playwright/`，而不会把 Firefox/WebKit 等一并打入包内。electron-builder 会把它与可执行文件一并放入 **`resources/sidecar/ms-playwright/`**。冻结运行的 sidecar 会通过 `PLAYWRIGHT_BROWSERS_PATH` 指向该目录（由 `configure_runtime_environment()` 设置）；也可用环境变量 `PLAYWRIGHT_BROWSERS_PATH` 覆盖安装源或调试路径。
 
@@ -111,7 +111,7 @@ npm --prefix desktop run build
 npm --prefix desktop run package:desktop
 ```
 
-`package:desktop`（以及 `package:desktop:dir`）会在调用 electron-builder **之前**先构建 frozen Python sidecar：产物落在仓库根目录的 `build/desktop-sidecar/`，再由 Electron 打包配置复制到应用包内的 **`resources/sidecar/`**（例如 `resources/sidecar/desktop-backend` 或 `desktop-backend.exe`）。运行时主进程会按 [`docs/electron-desktop-ui.md`](docs/electron-desktop-ui.md) 中的顺序解析可执行文件。
+`package:desktop`（以及 `package:desktop:dir`）会在调用 electron-builder **之前**先构建 frozen Python sidecar：产物落在仓库根目录的 `build/desktop-sidecar/desktop-backend/`（内含 `_internal/` 与入口二进制），Playwright 资源仍在同级的 `build/desktop-sidecar/ms-playwright/`；electron-builder 复制到应用包 **`resources/sidecar/`**。运行时入口为 **`resources/sidecar/desktop-backend/desktop-backend`**（macOS/Linux）或 **`resources/sidecar/desktop-backend/desktop-backend.exe`**（Windows）；详见 [`docs/electron-desktop-ui.md`](docs/electron-desktop-ui.md)。
 
 ### 仅构建 sidecar（不打包 Electron）
 

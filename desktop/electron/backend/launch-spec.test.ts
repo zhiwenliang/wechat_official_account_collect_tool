@@ -141,6 +141,45 @@ describe("resolveBackendLaunchSpec", () => {
     expect(spec.cwd).toBe(path.dirname(sidecarPath));
   });
 
+  it("prefers PyInstaller onedir binary under sidecar/desktop-backend/ when present", () => {
+    const nestedPath = path.join(
+      resourcesPath,
+      "sidecar",
+      "desktop-backend",
+      "desktop-backend",
+    );
+    const legacyFlat = path.join(resourcesPath, "sidecar", "desktop-backend");
+    const spec = resolveBackendLaunchSpec(5002, {
+      env: {},
+      backendModule: defaultModule,
+      isPackaged: true,
+      resourcesPath,
+      repositoryRoot,
+      platform: "darwin",
+      existsSync: (candidate) => candidate === nestedPath || candidate === legacyFlat,
+      isExecutableFile: (candidate) => candidate === nestedPath,
+    });
+
+    expect(spec.command).toBe(nestedPath);
+    expect(spec.cwd).toBe(path.dirname(nestedPath));
+  });
+
+  it("falls back to legacy onefile path when onedir binary is absent", () => {
+    const legacyFlat = path.join(resourcesPath, "sidecar", "desktop-backend");
+    const spec = resolveBackendLaunchSpec(5003, {
+      env: {},
+      backendModule: defaultModule,
+      isPackaged: true,
+      resourcesPath,
+      repositoryRoot,
+      platform: "darwin",
+      existsSync: (candidate) => candidate === legacyFlat,
+      isExecutableFile: (candidate) => candidate === legacyFlat,
+    });
+
+    expect(spec.command).toBe(legacyFlat);
+  });
+
   it("falls back to resources root executable on darwin when sidecar dir is absent", () => {
     const fallback = path.join(resourcesPath, "desktop-backend");
     const spec = resolveBackendLaunchSpec(5001, {

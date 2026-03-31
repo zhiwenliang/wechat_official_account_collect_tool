@@ -2,6 +2,8 @@ import path from "node:path";
 
 const BACKEND_HOST = "127.0.0.1";
 const PACKAGED_SIDECAR_DIRNAME = "sidecar";
+/** PyInstaller onedir output folder under resources/sidecar/. */
+const PACKAGED_SIDECAR_BUNDLE_DIR = "desktop-backend";
 
 export type BackendLaunchSpec = {
   command: string;
@@ -19,6 +21,11 @@ export type ResolveBackendLaunchSpecDeps = {
   repositoryRoot: string;
   platform: NodeJS.Platform;
   existsSync: (filePath: string) => boolean;
+  /**
+   * When set (production), only regular files count as runnable sidecars. Required so onedir
+   * layout (`.../sidecar/desktop-backend/` directory) does not shadow the real binary.
+   */
+  isExecutableFile?: (filePath: string) => boolean;
 };
 
 function packagedSidecarExecutableName(platform: NodeJS.Platform) {
@@ -58,6 +65,28 @@ function resolveConfiguredWorkingDirectory(deps: ResolveBackendLaunchSpecDeps, d
   return defaultWorkingDirectory;
 }
 
+function packagedSidecarCandidatePaths(deps: ResolveBackendLaunchSpecDeps): string[] {
+  const execName = packagedSidecarExecutableName(deps.platform);
+  const sidecarRoot = path.join(deps.resourcesPath, PACKAGED_SIDECAR_DIRNAME);
+  return [
+    path.join(sidecarRoot, PACKAGED_SIDECAR_BUNDLE_DIR, execName),
+    path.join(sidecarRoot, execName),
+    path.join(deps.resourcesPath, execName),
+  ];
+}
+
+function isRunnablePackagedBinary(deps: ResolveBackendLaunchSpecDeps, candidatePath: string): boolean {
+  if (!deps.existsSync(candidatePath)) {
+    return false;
+  }
+
+  if (deps.isExecutableFile === undefined) {
+    return true;
+  }
+
+  return deps.isExecutableFile(candidatePath);
+}
+
 function resolvePackagedSidecarExecutable(deps: ResolveBackendLaunchSpecDeps) {
   const configuredExecutable = deps.env.DESKTOP_BACKEND_EXECUTABLE;
   if (hasText(configuredExecutable)) {
@@ -66,17 +95,17 @@ function resolvePackagedSidecarExecutable(deps: ResolveBackendLaunchSpecDeps) {
       throw new Error(`DESKTOP_BACKEND_EXECUTABLE points to a missing file: ${executablePath}`);
     }
 
+    if (deps.isExecutableFile !== undefined && !deps.isExecutableFile(executablePath)) {
+      throw new Error(`DESKTOP_BACKEND_EXECUTABLE must be a regular file: ${executablePath}`);
+    }
+
     return executablePath;
   }
 
-  const execName = packagedSidecarExecutableName(deps.platform);
-  const candidatePaths = [
-    path.join(deps.resourcesPath, PACKAGED_SIDECAR_DIRNAME, execName),
-    path.join(deps.resourcesPath, execName),
-  ];
+  const candidatePaths = packagedSidecarCandidatePaths(deps);
 
   for (const candidatePath of candidatePaths) {
-    if (deps.existsSync(candidatePath)) {
+    if (isRunnablePackagedBinary(deps, candidatePath)) {
       return candidatePath;
     }
   }

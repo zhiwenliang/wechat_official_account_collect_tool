@@ -3,13 +3,8 @@ from __future__ import annotations
 import threading
 from typing import Callable
 
-from services.calibration_service import CalibrationCancelled
-
 from ..task_registry import TaskRegistry
 from .calibration.runtime import default_calibration_runtime_factory
-from .calibration.worker import CalibrationTaskWorker
-from .collection.runner import begin_collection_task
-from .scraping.runner import begin_scrape_task
 from .defaults import (
     CalibrationRuntimeFactory,
     CollectorFactory,
@@ -47,6 +42,8 @@ class WorkflowTaskHandlers:
         self._workers_lock = threading.RLock()
 
     def start_collection_task(self) -> str:
+        from .collection.runner import begin_collection_task
+
         collector = self._collector_factory()
         return begin_collection_task(
             task_registry=self.task_registry,
@@ -58,6 +55,8 @@ class WorkflowTaskHandlers:
         )
 
     def start_scrape_task(self) -> str:
+        from .scraping.runner import begin_scrape_task
+
         scraper = self._scraper_factory()
         db = self._scrape_db_factory()
         file_store = self._file_store_factory()
@@ -75,6 +74,8 @@ class WorkflowTaskHandlers:
         )
 
     def start_calibration_task(self, action: str) -> str:
+        from .calibration.worker import CalibrationTaskWorker
+
         runtime = self._calibration_runtime_factory()
         task_id = self.task_registry.start_task("calibration")
         worker = CalibrationTaskWorker(
@@ -96,6 +97,8 @@ class WorkflowTaskHandlers:
         return task_id
 
     def submit_calibration_response(self, task_id: str, response: dict[str, object]) -> bool:
+        from .calibration.worker import CalibrationTaskWorker
+
         worker = self._get_worker(task_id)
         if not isinstance(worker, CalibrationTaskWorker):
             return False
@@ -153,7 +156,9 @@ class WorkflowTaskHandlers:
         with self._workers_lock:
             self._active_workers.pop(task_id, None)
 
-    def _run_calibration_task(self, task_id: str, action: str, worker: CalibrationTaskWorker) -> None:
+    def _run_calibration_task(self, task_id: str, action: str, worker: object) -> None:
+        from services.calibration_service import CalibrationCancelled
+
         try:
             result = worker.run()
         except CalibrationCancelled:
