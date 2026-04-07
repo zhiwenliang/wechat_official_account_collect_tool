@@ -10,18 +10,25 @@
     - `desktop/src/renderer/components/`: reusable UI building blocks.
     - `desktop/src/renderer/lib/`: client API helpers, utilities, and integrations (for example task-event streaming).
     - `desktop/src/renderer/state/`: Zustand stores and related UI state.
+  - `desktop/tests/e2e/`: Playwright desktop smoke and app-level Electron coverage.
+  - `desktop/scripts/`: desktop build helpers, including sidecar packaging orchestration.
 - `desktop_backend/`: Python sidecar entrypoint, HTTP server, routing, task registry, statistics, and import/export handlers.
   - `desktop_backend/app.py`, `desktop_backend/server.py`, `desktop_backend/server_routes.py`, `desktop_backend/server_runtime.py`, `desktop_backend/import_export_handlers.py`, `desktop_backend/runtime.py`
   - `desktop_backend/task_registry.py`, `desktop_backend/task_events.py`, `desktop_backend/statistics.py`, `desktop_backend/tasks/workflow_handlers.py`
   - `desktop_backend/articles/`: article HTTP/query handling (`query_handlers.py`, `command_handlers.py`, `payloads.py`).
+  - `desktop_backend/http/`: shared HTTP parsing and image proxy helpers used by the sidecar.
+  - `desktop_backend/packaging/`: PyInstaller entrypoint/spec and Playwright staging helpers for the bundled sidecar.
   - `desktop_backend/tasks/calibration/`: calibration task workers and helpers.
   - `desktop_backend/tasks/collection/`: Stage 1 collection task workers and helpers.
   - `desktop_backend/tasks/scraping/`: Stage 2 scraping task workers and helpers.
 - `scraper/`: Stage 1 link collection and Stage 2 article scraping internals.
 - `services/`: shared calibration, workflow, and data-transfer logic used by the sidecar.
-- `storage/`: SQLite access and file export helpers.
-- `tests/`: backend/unit coverage plus `tests/test_electron_only_repo.py` for repo guardrails.
+- `storage/`: SQLite access split across `database_core.py`, `database_queries.py`, `database_mutations.py`, plus file export helpers.
+- `utils/`: runtime environment and stop-control helpers shared by desktop and sidecar code.
+- `scripts/`: repo-level build and manual verification helpers such as `build_desktop_sidecar.py` and `manual/stage*_check.py`.
+- `tests/`: backend/unit coverage plus repo guardrails such as `tests/test_electron_only_repo.py` and packaging checks.
 - `docs/`: desktop release notes plus historical design and plan docs under `docs/superpowers/`.
+- `build/`: generated frozen sidecar output and staged browser assets; do not hand-edit.
 - `config/` and `data/`: runtime state (gitignored).
 
 ## Environment Management
@@ -42,7 +49,9 @@ playwright install chromium
 npm --prefix desktop install
 npm --prefix desktop run dev
 npm --prefix desktop run build
+npm --prefix desktop run build:sidecar
 npm --prefix desktop run package:desktop
+npm --prefix desktop run package:desktop:dir
 npm --prefix desktop run typecheck
 npm --prefix desktop run test
 npm --prefix desktop run e2e
@@ -53,6 +62,7 @@ python -m desktop_backend.app
 - End users are expected to use the Electron desktop app only.
 - Running `python -m desktop_backend.app` directly is a contributor workflow for debugging the sidecar.
 - Electron resolves the backend via `DESKTOP_BACKEND_EXECUTABLE`, `DESKTOP_BACKEND_PYTHON`, the active Conda env, then packaged sidecar locations.
+- Bundled releases depend on the frozen sidecar output under `build/desktop-sidecar/`, including staged `ms-playwright` assets.
 
 ## Coding Style & Naming
 
@@ -65,6 +75,7 @@ python -m desktop_backend.app
 
 - Python tests use `unittest`; keep coverage focused on sidecar handlers, workflows, storage, and repo-level guardrails.
 - Prefer `conda run -n wechat-scraper python -m unittest tests.test_electron_only_repo -v` after repo-doc or packaging changes.
+- For sidecar structure or packaging changes, also run targeted suites such as `tests.test_desktop_backend_structure`, `tests.test_desktop_sidecar_packaging`, or `tests.test_playwright_stage`.
 - Desktop tests use `vitest` under `desktop/src/renderer/**/*.test.tsx`.
 - Electron smoke coverage lives under `desktop/tests/e2e/`.
 - Avoid adding tests that require real WeChat UI interaction in CI; keep those as manual scripts/docs.
@@ -84,6 +95,7 @@ python -m desktop_backend.app
 - Stage 1 uses `pyautogui` and can move/click the mouse; keep the failsafe behavior intact and document any changes.
 - Empty-content articles are tracked by DB content (`status='scraped'` with blank `content_html`), not by a separate status value.
 - If you change packaging or startup behavior, update both `README.md` and `docs/electron-desktop-ui.md` in the same change.
+- If you change sidecar packaging assumptions, keep `tests/test_electron_only_repo.py` aligned with the contributor docs.
 
 ## Learned User Preferences
 

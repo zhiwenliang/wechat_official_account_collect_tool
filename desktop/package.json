@@ -58,6 +58,15 @@
       "package.json"
     ],
     "asar": true,
+    "mac": {
+      "icon": "../assets/icons/wechat-scraper.icns"
+    },
+    "win": {
+      "icon": "../assets/icons/wechat-scraper.ico"
+    },
+    "linux": {
+      "icon": "../assets/icons/wechat-scraper-icon-1024.png"
+    },
     "extraResources": [
       {
         "from": "../build/desktop-sidecar",

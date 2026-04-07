@@ -163,7 +163,7 @@ export function CollectionPage() {
       <div>
         <h1 className="text-xl font-bold text-gray-900">采集任务</h1>
         <p className="mt-1 text-sm text-gray-500">
-          在启动 Stage 1 之前，先确认 WeChat 桌面端已打开并完成坐标校准。
+          启动前请确认微信桌面端已打开，并已完成坐标校准。
         </p>
       </div>
 

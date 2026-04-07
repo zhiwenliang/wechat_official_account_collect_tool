@@ -67,7 +67,7 @@ describe("renderBackendCopy", () => {
       }),
     ).toEqual({
       title: "已连接",
-      description: "backend service: desktop-backend",
+      description: "服务运行正常",
     });
   });
 
@@ -79,7 +79,7 @@ describe("renderBackendCopy", () => {
       }),
     ).toEqual({
       title: "启动失败",
-      description: "python not found",
+      description: "服务启动失败，请重启应用",
     });
   });
 
@@ -121,7 +121,7 @@ describe("renderBackendCopy", () => {
     });
 
     expect(container.textContent).toContain("启动失败");
-    expect(container.textContent).toContain("desktop backend exited");
+    expect(container.textContent).toContain("服务启动失败，请重启应用");
 
     await act(async () => {
       root.unmount();
@@ -136,7 +136,7 @@ describe("renderBackendCopy", () => {
       if (invocationCount === 1) {
         return Promise.resolve({
           state: "starting",
-          message: "正在启动 Python sidecar",
+          message: "正在初始化应用",
         });
       }
 

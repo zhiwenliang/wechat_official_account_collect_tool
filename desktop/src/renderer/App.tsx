@@ -20,7 +20,7 @@ import { ScrapingPage } from "./features/scraping/ScrapingPage";
 
 const INITIAL_STATUS: BackendStatus = {
   state: "starting",
-  message: "正在启动 Python sidecar",
+  message: "正在初始化应用",
 };
 const BACKEND_STATUS_POLL_INTERVAL_MS = 3000;
 const queryClient = new QueryClient();
@@ -30,17 +30,17 @@ export function renderBackendCopy(status: BackendStatus) {
     case "starting":
       return {
         title: "启动中",
-        description: status.message,
+        description: "正在初始化服务",
       };
     case "ready":
       return {
         title: "已连接",
-        description: `backend service: ${status.health.service}`,
+        description: "服务运行正常",
       };
     case "error":
       return {
         title: "启动失败",
-        description: status.message,
+        description: "服务启动失败，请重启应用",
       };
   }
 }
@@ -225,10 +225,10 @@ export function App() {
                   <>
                     <div className="mb-4 h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-blue-500" />
                     <h2 className="text-lg font-semibold text-gray-800">
-                      等待后端就绪
+                      正在启动
                     </h2>
                     <p className="mt-1 text-sm text-gray-500">
-                      Python sidecar 就绪后再加载页面
+                      应用正在初始化，请稍候
                     </p>
                   </>
                 )}

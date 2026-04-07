@@ -77,7 +77,7 @@ export class PythonSidecarController {
 
   private status: BackendStatus = {
     state: "starting",
-    message: "正在启动 Python sidecar",
+    message: "正在初始化应用",
   };
 
   private startup = new RetryableStartup();
@@ -121,7 +121,7 @@ export class PythonSidecarController {
 
     this.status = {
       state: "starting",
-      message: `正在启动 Python sidecar: ${launchSpec.description}`,
+      message: `正在初始化应用`,
     };
 
     const child = spawn(launchSpec.command, launchSpec.args, {
@@ -193,7 +193,7 @@ export class PythonSidecarController {
         // Keep polling until the backend responds or the timeout expires.
       }
 
-      await sleep(150);
+      await sleep(50);
     }
 
     throw new Error(

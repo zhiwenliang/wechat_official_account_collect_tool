@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from services.calibration_service import (
+from services.calibration_config import (
     get_coordinates_path,
     load_coordinates_config,
 )

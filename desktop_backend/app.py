@@ -7,14 +7,7 @@ from utils.runtime_env import configure_runtime_environment
 
 from .runtime import DEFAULT_HOST, DEFAULT_PORT
 from .server import DesktopBackendServer
-from .import_export_handlers import export_data_bundle_handler, import_database_handler
-from .articles.command_handlers import (
-    delete_selected_articles_handler,
-    retry_empty_content_articles_handler,
-    retry_failed_articles_handler,
-)
 from .task_registry import TaskRegistry
-from .tasks.workflow_handlers import WorkflowTaskHandlers
 
 
 def create_server(
@@ -28,6 +21,8 @@ def create_server(
     pending_articles_provider=None,
     calibration_runtime_factory=None,
 ) -> DesktopBackendServer:
+    from .tasks.workflow_handlers import WorkflowTaskHandlers
+
     task_registry = TaskRegistry()
     task_handlers = WorkflowTaskHandlers(
         task_registry=task_registry,
@@ -76,8 +71,15 @@ def _handle_get(
 def _handle_post(
     path: str,
     body: Any,
-    task_handlers: WorkflowTaskHandlers,
+    task_handlers: "WorkflowTaskHandlers",
 ) -> tuple[int, dict[str, Any]] | None:
+    from .import_export_handlers import export_data_bundle_handler, import_database_handler
+    from .articles.command_handlers import (
+        delete_selected_articles_handler,
+        retry_empty_content_articles_handler,
+        retry_failed_articles_handler,
+    )
+
     payload = body if isinstance(body, dict) else {}
 
     if path == "/api/articles/retry-failed":

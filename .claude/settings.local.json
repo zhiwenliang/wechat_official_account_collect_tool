@@ -20,7 +20,8 @@
       "Bash(npx vitest:*)",
       "Bash(sqlite3:*)",
       "Bash(chmod:*)",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(conda run:*)"
     ]
   }
 }

@@ -177,8 +177,7 @@ export function ScrapingPage() {
       <div>
         <h1 className="text-xl font-bold text-gray-900">抓取任务</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Stage 2 会顺着数据库里的待抓取文章运行 Playwright，完成后自动生成
-          Markdown 索引。
+          自动抓取已采集文章的正文内容，完成后生成本地索引。
         </p>
       </div>
 
@@ -221,7 +220,7 @@ export function ScrapingPage() {
             </li>
             <li className="flex items-start gap-2">
               <CheckCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-green-500" />
-              确保 Chromium 和 Playwright 依赖已经准备好。
+              确保应用已正常启动，浏览器组件可用。
             </li>
             <li className="flex items-start gap-2">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
